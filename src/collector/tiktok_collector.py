@@ -189,15 +189,92 @@ class TikTokCollector(BaseCollector):
         logger.info("TikTok search found %d candidate videos", len(results))
         return results
 
-    def download(self, metadata: VideoMetadata) -> VideoMetadata:
+    def _scrape_video_page(self, metadata: VideoMetadata) -> VideoMetadata:
         """
-        Download a TikTok video and extract MP3 audio with yt-dlp.
+        Scrape a TikTok video page with Playwright to extract description text
+        and capture a page screenshot — used when video download is blocked.
 
         Args:
             metadata: VideoMetadata with a valid TikTok URL.
 
         Returns:
-            Updated VideoMetadata with local_path and audio_path populated.
+            metadata updated with prefetched_transcript (description text)
+            and thumbnail_paths (page screenshot).
+        """
+        if not _playwright_available():
+            return metadata
+        from playwright.sync_api import sync_playwright
+
+        safe_id = metadata.video_id.replace("/", "_").replace("\\", "_")[:64]
+        shot_path = os.path.join(self.output_dir, f"{self.PLATFORM}_{safe_id}_page.png")
+
+        try:
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch(headless=True)
+                context = browser.new_context(
+                    user_agent=_MOBILE_UA,
+                    viewport={"width": 390, "height": 844},
+                    locale="pt-BR",
+                )
+                if self.cookies_file and os.path.exists(self.cookies_file):
+                    _load_playwright_cookies(context, self.cookies_file)
+                page = context.new_page()
+                page.goto(metadata.url, wait_until="domcontentloaded", timeout=20000)
+                page.wait_for_timeout(3000)
+
+                # Attempt to extract video description / caption text
+                description = ""
+                for selector in [
+                    "[data-e2e='browse-video-desc']",
+                    "[class*='DivVideoDesc']",
+                    "meta[name='description']",
+                ]:
+                    try:
+                        if selector.startswith("meta"):
+                            description = page.get_attribute(selector, "content") or ""
+                        else:
+                            description = page.inner_text(selector) or ""
+                        if description:
+                            break
+                    except Exception:
+                        continue
+
+                # Fallback: page title
+                if not description:
+                    try:
+                        description = page.title()
+                    except Exception:
+                        pass
+
+                page.screenshot(path=shot_path, full_page=False)
+                browser.close()
+
+            if description:
+                metadata.prefetched_transcript = description
+                logger.info("TikTok page text scraped for %s (%d chars)", metadata.video_id, len(description))
+            if os.path.exists(shot_path):
+                metadata.thumbnail_paths = [shot_path]
+                logger.info("TikTok page screenshot saved: %s", shot_path)
+
+        except Exception as exc:
+            logger.warning("TikTok page scrape failed for %s: %s", metadata.video_id, exc)
+
+        return metadata
+
+    def download(self, metadata: VideoMetadata) -> VideoMetadata:
+        """
+        Attempt to download a TikTok video; fall back to page scraping.
+
+        Primary path: yt-dlp video + ffmpeg audio extraction.
+        Fallback (bot-detection / status code 0): Playwright page scrape for
+        description text and a page screenshot.
+
+        Args:
+            metadata: VideoMetadata with a valid TikTok URL.
+
+        Returns:
+            Updated VideoMetadata. On success: local_path + audio_path set.
+            On failure: prefetched_transcript + thumbnail_paths set instead.
         """
         safe_id = metadata.video_id.replace("/", "_").replace("\\", "_")[:64]
         out_template = os.path.join(
@@ -216,25 +293,30 @@ class TikTokCollector(BaseCollector):
             *self._cookies_args(),
             metadata.url,
         ]
-        _run_with_retry(video_cmd)
+        try:
+            _run_with_retry(video_cmd)
+            local_path = _find_file(
+                self.output_dir,
+                f"{self.PLATFORM}_{safe_id}",
+                (".mp4", ".webm", ".mov"),
+            )
+            audio_path = os.path.join(self.output_dir, f"{self.PLATFORM}_{safe_id}.mp3")
+            if local_path and not os.path.exists(audio_path):
+                audio_cmd = [
+                    "ffmpeg", "-y", "-i", local_path,
+                    "-vn", "-acodec", "libmp3lame", "-ab", "96k",
+                    audio_path,
+                ]
+                _run_with_retry(audio_cmd)
+            metadata.local_path = local_path
+            metadata.audio_path = audio_path if os.path.exists(audio_path) else None
+        except Exception as exc:
+            logger.warning(
+                "TikTok download failed for %s (%s) — using page scrape fallback.",
+                metadata.video_id, exc,
+            )
+            metadata = self._scrape_video_page(metadata)
 
-        local_path = _find_file(
-            self.output_dir,
-            f"{self.PLATFORM}_{safe_id}",
-            (".mp4", ".webm", ".mov"),
-        )
-
-        audio_path = os.path.join(self.output_dir, f"{self.PLATFORM}_{safe_id}.mp3")
-        if local_path and not os.path.exists(audio_path):
-            audio_cmd = [
-                "ffmpeg", "-y", "-i", local_path,
-                "-vn", "-acodec", "libmp3lame", "-ab", "96k",
-                audio_path,
-            ]
-            _run_with_retry(audio_cmd)
-
-        metadata.local_path = local_path
-        metadata.audio_path = audio_path if os.path.exists(audio_path) else None
         return metadata
 
 

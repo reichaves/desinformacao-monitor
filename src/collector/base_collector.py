@@ -33,6 +33,10 @@ class VideoMetadata:
     local_path: Optional[str] = None
     audio_path: Optional[str] = None
     screenshots_dir: Optional[str] = None
+    # Pre-fetched transcript (e.g. from YouTube captions API — avoids video download)
+    prefetched_transcript: Optional[str] = None
+    # Thumbnail or screenshot image paths for visual analysis
+    thumbnail_paths: list[str] = field(default_factory=list)
     collected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 

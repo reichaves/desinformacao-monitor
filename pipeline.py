@@ -210,7 +210,7 @@ def run_pipeline() -> None:
     for idx, video in enumerate(all_videos, start=1):
         logger.info("--- Video %d/%d: %s [%s] ---", idx, len(all_videos), video.video_id, video.platform)
 
-        # Screenshots
+        # Screenshots (from downloaded video file)
         frame_paths: list[str] = []
         if video.local_path and os.path.exists(video.local_path):
             try:
@@ -223,18 +223,27 @@ def run_pipeline() -> None:
                 all_screenshots.extend(frame_paths[:5])  # Upload top 5 per video
             except Exception as exc:
                 logger.warning("Screenshot extraction failed for %s: %s", video.video_id, exc)
+        elif video.thumbnail_paths:
+            # Fallback: use pre-fetched thumbnail / page screenshot as visual input
+            frame_paths = video.thumbnail_paths
+            all_screenshots.extend(frame_paths[:1])
+            logger.info("Using %d thumbnail(s) for visual analysis of %s", len(frame_paths), video.video_id)
         else:
-            logger.warning("No local video file for %s — skipping screenshots", video.video_id)
+            logger.warning("No visual frames for %s — skipping visual analysis", video.video_id)
 
         # Transcription
         transcript = ""
-        if video.audio_path and os.path.exists(video.audio_path):
+        if video.prefetched_transcript:
+            # Use captions / page text fetched during collection (no audio file needed)
+            transcript = video.prefetched_transcript
+            logger.info("Using prefetched transcript for %s (%d chars)", video.video_id, len(transcript))
+        elif video.audio_path and os.path.exists(video.audio_path):
             try:
                 transcript = transcriber.transcribe(video.audio_path)
             except Exception as exc:
                 logger.warning("Transcription failed for %s: %s", video.video_id, exc)
         else:
-            logger.warning("No audio file for %s — skipping transcription", video.video_id)
+            logger.warning("No transcript available for %s — content analysis will rely on title/description", video.video_id)
 
         # Visual analysis
         visual_result = VisualAnalysisResult()
