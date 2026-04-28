@@ -1,4 +1,4 @@
-# Monitor de Desinformação — Abraji
+# Monitor de Desinformação
 
 Pipeline automatizado de monitoramento de vídeos de desinformação e ataques à imprensa e à democracia no Brasil, via YouTube e TikTok.
 
