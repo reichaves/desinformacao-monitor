@@ -1,9 +1,13 @@
 """
-TikTok video collector using yt-dlp (hashtag and keyword search).
+TikTok video collector using Playwright for browser-based scraping + yt-dlp for download.
+
+yt-dlp's TikTok hashtag extractor requires internal app signing keys that
+are no longer available. This collector uses Playwright to scrape video URLs
+directly from hashtag pages (like a real browser), then downloads with yt-dlp.
 
 Author: Abraji / reichaves
 Date: 2026-04-28
-Dependencies: yt-dlp, subprocess, json
+Dependencies: playwright, yt-dlp, subprocess, json
 """
 
 import json
@@ -20,6 +24,12 @@ logger = logging.getLogger(__name__)
 
 _RETRY_DELAYS = [3, 8, 15]
 
+_MOBILE_UA = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+    "Version/17.0 Mobile/15E148 Safari/604.1"
+)
+
 
 def _run_with_retry(cmd: list[str], retries: int = 3) -> subprocess.CompletedProcess:
     """Run a shell command with exponential-style retries."""
@@ -27,10 +37,7 @@ def _run_with_retry(cmd: list[str], retries: int = 3) -> subprocess.CompletedPro
     for attempt, delay in enumerate((_RETRY_DELAYS + [0])[:retries], start=1):
         try:
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300,
+                cmd, capture_output=True, text=True, timeout=300,
             )
             if result.returncode == 0:
                 return result
@@ -43,42 +50,47 @@ def _run_with_retry(cmd: list[str], retries: int = 3) -> subprocess.CompletedPro
     raise RuntimeError(f"All {retries} attempts failed") from last_exc
 
 
+def _playwright_available() -> bool:
+    """Check whether playwright and its browsers are installed."""
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 class TikTokCollector(BaseCollector):
     """
-    Collects TikTok videos via yt-dlp hashtag/search pages.
+    Collects TikTok videos using Playwright for URL discovery + yt-dlp for download.
 
-    Requires cookies from a logged-in TikTok browser session.
-    Set TIKTOK_COOKIES_FILE env var to a Netscape cookies.txt path.
-
-    TikTok does not have a public API. This collector uses yt-dlp to
-    fetch video lists from hashtag pages and downloads up to max_results.
-    Note: TikTok actively blocks scrapers — failures are expected and logged.
+    Falls back gracefully if Playwright is not installed — logs a clear warning
+    and returns an empty list rather than crashing the pipeline.
     """
 
     PLATFORM = "tiktok"
-
-    # TikTok hashtag page template
     _HASHTAG_URL = "https://www.tiktok.com/tag/{tag}"
 
-    def __init__(self, output_dir: str, max_results: int = 20, cookies_file: Optional[str] = None):
+    def __init__(
+        self,
+        output_dir: str,
+        max_results: int = 20,
+        cookies_file: Optional[str] = None,
+    ):
         """
         Initialize the TikTok collector.
 
         Args:
             output_dir: Directory for downloaded files.
             max_results: Maximum videos to collect per run.
-            cookies_file: Path to Netscape-format cookies.txt exported from
-                          a logged-in TikTok browser session.
-                          Falls back to TIKTOK_COOKIES_FILE env var.
+            cookies_file: Path to a Netscape cookies.txt from a logged-in
+                          TikTok session. Falls back to TIKTOK_COOKIES_FILE env var.
         """
         super().__init__(output_dir, max_results)
         self.cookies_file = cookies_file or os.environ.get("TIKTOK_COOKIES_FILE")
-        if self.cookies_file:
-            logger.info("TikTok cookies loaded from: %s", self.cookies_file)
-        else:
+        if not _playwright_available():
             logger.warning(
-                "No TikTok cookies file — searches will likely fail. "
-                "Set TIKTOK_COOKIES_FILE to a cookies.txt path."
+                "Playwright not installed — TikTok collection disabled. "
+                "Run: pip install playwright && playwright install chromium"
             )
 
     def _cookies_args(self) -> list[str]:
@@ -89,85 +101,97 @@ class TikTokCollector(BaseCollector):
 
     def search(self, queries: list[str], hours_back: int = 24) -> list[VideoMetadata]:
         """
-        Enumerate TikTok hashtag pages for videos matching the given queries.
+        Scrape TikTok hashtag pages using Playwright to discover video URLs.
 
         Args:
-            queries: Hashtag names (with or without '#') or search terms.
-            hours_back: Ignored for TikTok (no reliable timestamp in free scrape).
+            queries: Hashtag names or search terms.
+            hours_back: Not used (TikTok doesn't expose timestamps in scrape).
 
         Returns:
-            List of VideoMetadata objects (url-only at this stage).
+            List of VideoMetadata objects with URLs ready for download.
         """
+        if not _playwright_available():
+            logger.warning("Playwright not available — skipping TikTok search.")
+            return []
+
+        from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+
         seen_ids: set[str] = set()
         results: list[VideoMetadata] = []
 
-        for query in queries[:10]:
-            tag = query.lstrip("#").replace(" ", "").lower()
-            url = self._HASHTAG_URL.format(tag=tag)
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=_MOBILE_UA,
+                viewport={"width": 390, "height": 844},
+                locale="pt-BR",
+            )
 
-            try:
-                # Use yt-dlp to list up to 5 videos from the hashtag page
-                cmd = [
-                    "yt-dlp",
-                    "--flat-playlist",
-                    "--playlist-end", "5",
-                    "--dump-json",
-                    "--no-warnings",
-                    "--quiet",
-                    "--user-agent",
-                    (
-                        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-                        "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                        "Version/17.0 Mobile/15E148 Safari/604.1"
-                    ),
-                    *self._cookies_args(),
-                    url,
-                ]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-                if result.returncode != 0:
-                    logger.warning("TikTok search failed for tag '%s': %s", tag, result.stderr[:200])
-                    continue
+            # Load cookies if available
+            if self.cookies_file and os.path.exists(self.cookies_file):
+                _load_playwright_cookies(context, self.cookies_file)
 
-                for line in result.stdout.strip().split("\n"):
-                    if not line:
-                        continue
-                    try:
-                        info = json.loads(line)
-                        vid_id = info.get("id") or info.get("webpage_url_basename", "")
-                        vid_url = info.get("webpage_url") or info.get("url", "")
-                        if not vid_id or vid_id in seen_ids or not vid_url:
+            page = context.new_page()
+
+            for query in queries[:10]:
+                tag = query.lstrip("#").replace(" ", "").lower()
+                url = self._HASHTAG_URL.format(tag=tag)
+                try:
+                    page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                    page.wait_for_timeout(3000)  # let JS render
+
+                    # Extract video links from the page
+                    links = page.eval_on_selector_all(
+                        "a[href*='/video/']",
+                        "els => els.map(e => e.href)",
+                    )
+
+                    for link in links[:5]:
+                        vid_id = _extract_tiktok_id(link)
+                        if not vid_id or vid_id in seen_ids:
                             continue
                         seen_ids.add(vid_id)
+
+                        # Try to get title from page
+                        title = tag
+                        try:
+                            title = page.title() or tag
+                        except Exception:
+                            pass
 
                         results.append(
                             VideoMetadata(
                                 video_id=vid_id,
-                                title=info.get("title", f"TikTok_{vid_id}"),
-                                url=vid_url,
+                                title=title,
+                                url=link,
                                 platform=self.PLATFORM,
-                                channel=info.get("uploader", ""),
-                                published_at=_ts_to_dt(info.get("timestamp")),
-                                duration_seconds=int(info.get("duration") or 0),
-                                view_count=int(info.get("view_count") or 0),
-                                like_count=int(info.get("like_count") or 0),
-                                description=info.get("description", ""),
+                                channel="",
+                                published_at=None,
+                                duration_seconds=0,
+                                view_count=0,
+                                like_count=0,
+                                description="",
                                 keywords_matched=[query],
                             )
                         )
-                    except json.JSONDecodeError:
-                        continue
 
-            except Exception as exc:
-                logger.warning("TikTok search error for query '%s': %s", query, exc)
+                    logger.info("TikTok tag '%s': found %d links", tag, len(links))
 
-            time.sleep(2)  # rate limiting between hashtag pages
+                except PWTimeout:
+                    logger.warning("Playwright timeout for TikTok tag '%s'", tag)
+                except Exception as exc:
+                    logger.warning("TikTok scrape error for tag '%s': %s", tag, exc)
+
+                time.sleep(2)
+
+            browser.close()
 
         logger.info("TikTok search found %d candidate videos", len(results))
         return results
 
     def download(self, metadata: VideoMetadata) -> VideoMetadata:
         """
-        Download a TikTok video and extract MP3 audio.
+        Download a TikTok video and extract MP3 audio with yt-dlp.
 
         Args:
             metadata: VideoMetadata with a valid TikTok URL.
@@ -183,14 +207,10 @@ class TikTokCollector(BaseCollector):
         video_cmd = [
             "yt-dlp",
             "--no-playlist",
-            "--format", "best",
+            "--format", "bestvideo+bestaudio/best",
+            "--merge-output-format", "mp4",
             "--output", out_template,
-            "--user-agent",
-            (
-                "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                "Version/17.0 Mobile/15E148 Safari/604.1"
-            ),
+            "--user-agent", _MOBILE_UA,
             "--no-warnings",
             "--quiet",
             *self._cookies_args(),
@@ -222,12 +242,54 @@ class TikTokCollector(BaseCollector):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _ts_to_dt(timestamp) -> Optional[datetime]:
-    """Convert a Unix timestamp to a UTC datetime."""
+def _extract_tiktok_id(url: str) -> Optional[str]:
+    """Extract the numeric video ID from a TikTok video URL."""
     try:
-        return datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
+        # URLs: https://www.tiktok.com/@user/video/7123456789012345678
+        parts = url.rstrip("/").split("/")
+        if "video" in parts:
+            idx = parts.index("video")
+            if idx + 1 < len(parts):
+                vid_id = parts[idx + 1].split("?")[0]
+                if vid_id.isdigit():
+                    return vid_id
     except Exception:
-        return None
+        pass
+    return None
+
+
+def _load_playwright_cookies(context, cookies_txt_path: str) -> None:
+    """
+    Load Netscape-format cookies.txt into a Playwright browser context.
+
+    Args:
+        context: Playwright BrowserContext.
+        cookies_txt_path: Path to cookies.txt file.
+    """
+    cookies = []
+    try:
+        with open(cookies_txt_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split("\t")
+                if len(parts) < 7:
+                    continue
+                domain, _, path, secure, expires, name, value = parts[:7]
+                cookies.append({
+                    "name": name,
+                    "value": value,
+                    "domain": domain.lstrip("."),
+                    "path": path,
+                    "secure": secure.upper() == "TRUE",
+                    "sameSite": "Lax",
+                })
+        if cookies:
+            context.add_cookies(cookies)
+            logger.debug("Loaded %d cookies into Playwright context", len(cookies))
+    except Exception as exc:
+        logger.warning("Could not load cookies into Playwright: %s", exc)
 
 
 def _find_file(directory: str, prefix: str, extensions: tuple) -> Optional[str]:

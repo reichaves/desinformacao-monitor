@@ -190,7 +190,8 @@ class YouTubeCollector(BaseCollector):
         video_cmd = [
             "yt-dlp",
             "--no-playlist",
-            "--format", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "--format", "bestvideo+bestaudio/best",
+            "--merge-output-format", "mp4",
             "--output", out_template,
             "--user-agent", _USER_AGENT,
             "--no-warnings",
