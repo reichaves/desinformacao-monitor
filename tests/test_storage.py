@@ -4,7 +4,7 @@ Unit tests for the storage module.
 Tests cover LocalStorage directory creation, JSON serialization,
 and cleanup behaviour.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 """
 

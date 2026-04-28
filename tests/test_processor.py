@@ -4,7 +4,7 @@ Unit tests for the processor module.
 Tests cover screenshot extraction path validation and content analysis
 JSON parsing. Gemini API calls are mocked.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 """
 

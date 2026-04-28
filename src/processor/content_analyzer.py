@@ -4,7 +4,7 @@ Comprehensive content analysis combining audio transcript + visual data.
 Sends transcription and visual summary to Gemini for a final structured
 analysis with disinformation classification and severity scoring.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: google-genai, json, os
 """

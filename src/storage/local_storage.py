@@ -3,7 +3,7 @@ Local file system management for temporary pipeline storage.
 
 Creates per-run directories for raw downloads, screenshots, and results.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: os, json, datetime
 """

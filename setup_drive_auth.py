@@ -19,7 +19,7 @@ Output:
         GOOGLE_DRIVE_CLIENT_SECRET
         GOOGLE_DRIVE_REFRESH_TOKEN
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: google-auth-oauthlib
 """

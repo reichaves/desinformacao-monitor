@@ -4,7 +4,7 @@ Visual analysis of video screenshots using Gemini vision (google-genai SDK).
 Sends batches of screenshots to Gemini and extracts descriptions,
 on-screen text (OCR), and presence of disinformation indicators.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: google-genai, Pillow, io, os
 """

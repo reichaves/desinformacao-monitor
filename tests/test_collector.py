@@ -4,7 +4,7 @@ Unit tests for the collector module.
 Tests cover metadata helpers and the base collector contract.
 Network calls are mocked.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 """
 

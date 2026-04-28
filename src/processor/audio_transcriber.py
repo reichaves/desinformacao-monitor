@@ -4,7 +4,7 @@ Audio transcription using the Gemini File API (google-genai SDK).
 Uploads MP3/WAV files to Gemini and requests a Portuguese transcription
 with speaker diarization hints.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: google-genai, os, time
 """

@@ -1,7 +1,7 @@
 """
 Extract screenshots from video files at a fixed interval using ffmpeg.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: ffmpeg (system binary), subprocess, os
 """

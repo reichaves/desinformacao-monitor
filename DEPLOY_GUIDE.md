@@ -1,5 +1,7 @@
 # Guia de Deploy — Monitor de Desinformação
 
+**Autor:** Reinaldo Chaves (reichaves@gmail.com)
+
 Este guia cobre todos os passos para colocar o pipeline em produção no GitHub Actions
 com publicação automática no GitHub Pages e armazenamento no Google Drive.
 
@@ -79,7 +81,11 @@ git push -u origin main
 | Nome | Valor | Obrigatório |
 |---|---|---|
 | `GEMINI_API_KEY` | Sua chave em aistudio.google.com | ✅ |
-| `GOOGLE_DRIVE_CREDENTIALS_B64` | JSON da service account em base64 | Apenas se usar Drive |
+| `YOUTUBE_COOKIES` | Conteúdo do cookies.txt do YouTube (formato Netscape) | Recomendado |
+| `TIKTOK_COOKIES` | Conteúdo do cookies.txt do TikTok (formato Netscape) | Recomendado |
+| `GOOGLE_DRIVE_CLIENT_ID` | Client ID do OAuth 2.0 (Google Cloud Console) | Apenas se usar Drive |
+| `GOOGLE_DRIVE_CLIENT_SECRET` | Client Secret do OAuth 2.0 | Apenas se usar Drive |
+| `GOOGLE_DRIVE_REFRESH_TOKEN` | Refresh token gerado pelo `setup_drive_auth.py` | Apenas se usar Drive |
 | `GOOGLE_DRIVE_FOLDER_ID` | ID da pasta no Drive | Apenas se usar Drive |
 
 #### Variables (valores não-sensíveis):
@@ -95,8 +101,8 @@ git push -u origin main
 ```bash
 # Instale: https://cli.github.com/
 gh secret set GEMINI_API_KEY --body "sua_chave_aqui" --repo reichaves/desinformacao-monitor
-gh secret set GOOGLE_DRIVE_CREDENTIALS_B64 --body "$(base64 -i service-account.json)" --repo reichaves/desinformacao-monitor
-gh secret set GOOGLE_DRIVE_FOLDER_ID --body "1AbCdEfGhIjKlMnOpQrStUvWx" --repo reichaves/desinformacao-monitor
+gh secret set YOUTUBE_COOKIES --body "$(cat youtube_cookies.txt)" --repo reichaves/desinformacao-monitor
+gh secret set TIKTOK_COOKIES --body "$(cat tiktok_cookies.txt)" --repo reichaves/desinformacao-monitor
 ```
 
 ---
@@ -113,49 +119,42 @@ gh secret set GOOGLE_DRIVE_FOLDER_ID --body "1AbCdEfGhIjKlMnOpQrStUvWx" --repo r
 
 ## 6. Configurar Google Drive (opcional)
 
-### 6a. Criar projeto no Google Cloud
+O pipeline usa **OAuth 2.0 com refresh token** (não service account) para garantir quota de armazenamento.
+
+### 6a. Criar projeto e credenciais no Google Cloud
 
 ```
 1. Acesse console.cloud.google.com
-2. Crie um novo projeto (ex: "desinformacao-monitor")
-3. Ative a API: APIs & Services → Enable APIs → "Google Drive API"
+2. Crie um projeto (ex: "desinformacao-monitor")
+3. Ative: APIs & Services → Enable APIs → "Google Drive API"
+4. Crie credenciais: APIs & Services → Credentials → Create credentials
+   → OAuth client ID → Desktop app
+5. Baixe o JSON das credenciais
 ```
 
-### 6b. Criar service account
+### 6b. Gerar o refresh token
 
-```
-1. APIs & Services → Credentials → Create credentials → Service account
-2. Nome: "desinformacao-pipeline"
-3. Role: Editor
-4. Baixe o JSON da chave (Service account → Keys → Add key → JSON)
+Execute localmente (apenas uma vez):
+
+```bash
+python setup_drive_auth.py
 ```
 
-### 6c. Compartilhar pasta do Drive com a service account
+O script abrirá o browser, você fará login com sua conta Google e o script imprimirá os comandos `gh secret set` com os três valores necessários: `GOOGLE_DRIVE_CLIENT_ID`, `GOOGLE_DRIVE_CLIENT_SECRET` e `GOOGLE_DRIVE_REFRESH_TOKEN`.
+
+### 6c. Criar pasta no Drive e obter o FOLDER_ID
 
 ```
 1. Crie uma pasta no Google Drive (ex: "Monitor Desinformação")
-2. Clique com botão direito → Share
-3. Adicione o email da service account (ex: desinformacao-pipeline@seu-projeto.iam.gserviceaccount.com)
-4. Permissão: Editor
-5. Copie o ID da pasta da URL: drive.google.com/drive/folders/<FOLDER_ID>
+2. Abra a pasta; copie o ID da URL:
+   drive.google.com/drive/folders/<FOLDER_ID>
+3. gh secret set GOOGLE_DRIVE_FOLDER_ID --body "<FOLDER_ID>" --repo reichaves/desinformacao-monitor
 ```
 
-### 6d. Codificar credenciais em base64
-
-```bash
-# Linux / Mac:
-base64 -i service-account.json
-
-# Windows (PowerShell):
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("service-account.json"))
-```
-
-Cole o resultado no secret `GOOGLE_DRIVE_CREDENTIALS_B64`.
-
-### 6e. Ativar upload no Drive
+### 6d. Ativar upload
 
 ```
-# No GitHub → Settings → Variables → New variable:
+GitHub → Settings → Variables → New variable:
 Nome: ENABLE_GOOGLE_DRIVE
 Valor: true
 ```
@@ -248,7 +247,11 @@ Contém o `run_summary.json` com todos os dados coletados e analisados.
 | `HOURS_BACK` | | `24` | Janela de busca em horas |
 | `SCREENSHOT_INTERVAL_SECONDS` | | `3` | Intervalo entre frames |
 | `ENABLE_GOOGLE_DRIVE` | | `false` | Ativar upload Drive |
-| `GOOGLE_DRIVE_CREDENTIALS_B64` | Se Drive ativo | — | Service account JSON em base64 |
+| `YOUTUBE_COOKIES` | | — | Conteúdo Netscape cookies.txt do YouTube |
+| `TIKTOK_COOKIES` | | — | Conteúdo Netscape cookies.txt do TikTok |
+| `GOOGLE_DRIVE_CLIENT_ID` | Se Drive ativo | — | OAuth Client ID |
+| `GOOGLE_DRIVE_CLIENT_SECRET` | Se Drive ativo | — | OAuth Client Secret |
+| `GOOGLE_DRIVE_REFRESH_TOKEN` | Se Drive ativo | — | OAuth Refresh Token |
 | `GOOGLE_DRIVE_FOLDER_ID` | Se Drive ativo | — | ID da pasta no Drive |
 | `DATA_DIR` | | `data` | Diretório de dados temporários |
 | `DOCS_DIR` | | `docs` | Diretório do relatório HTML |

@@ -5,7 +5,7 @@ yt-dlp's TikTok hashtag extractor requires internal app signing keys that
 are no longer available. This collector uses Playwright to scrape video URLs
 directly from hashtag pages (like a real browser), then downloads with yt-dlp.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: playwright, yt-dlp, subprocess, json
 """

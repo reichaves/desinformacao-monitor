@@ -1,7 +1,7 @@
 """
 Abstract base class for video collectors.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: abc, dataclasses, logging
 """

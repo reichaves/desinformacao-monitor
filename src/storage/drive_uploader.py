@@ -4,7 +4,7 @@ Google Drive uploader using OAuth 2.0 with a pre-obtained refresh token.
 Files are uploaded as the authenticated user (personal Google account),
 so storage quota is counted against the user — not a service account.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: google-api-python-client, google-auth, google-auth-oauthlib
 """

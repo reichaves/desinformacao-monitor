@@ -4,7 +4,7 @@ Main pipeline orchestrator for the disinformation monitoring system.
 Coordinates: collection → screenshots → transcription → visual analysis
              → content analysis → local storage → Drive upload → HTML report.
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: See requirements.txt
 """

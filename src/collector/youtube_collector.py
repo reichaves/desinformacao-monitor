@@ -3,7 +3,7 @@ YouTube video collector using yt-dlp for search and youtube-transcript-api
 for transcription. Video download is attempted but gracefully skipped when
 blocked by bot detection (common on cloud/datacenter IPs).
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: yt-dlp, youtube-transcript-api, subprocess, json
 """

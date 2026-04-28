@@ -4,7 +4,7 @@ Interactive HTML report generator for GitHub Pages.
 Reads the run_summary.json and renders a fully self-contained HTML page
 using Chart.js + Tailwind CDN (zero-build, no Node.js required).
 
-Author: Abraji / reichaves
+Author: Reinaldo Chaves (reichaves@gmail.com)
 Date: 2026-04-28
 Dependencies: jinja2, json, os
 """
