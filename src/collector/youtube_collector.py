@@ -55,9 +55,39 @@ class YouTubeCollector(BaseCollector):
 
     Uses yt-dlp's built-in ytsearch for discovery (no API key required)
     and yt-dlp for downloading video + audio extraction.
+
+    Supports cookie-based authentication to bypass bot detection on
+    GitHub Actions IPs. Pass cookies_file path or set YOUTUBE_COOKIES_FILE
+    environment variable.
     """
 
     PLATFORM = "youtube"
+
+    def __init__(self, output_dir: str, max_results: int = 20, cookies_file: Optional[str] = None):
+        """
+        Initialize the YouTube collector.
+
+        Args:
+            output_dir: Directory for downloaded files.
+            max_results: Maximum videos to collect per run.
+            cookies_file: Path to Netscape-format cookies.txt file.
+                          Falls back to YOUTUBE_COOKIES_FILE env var.
+        """
+        super().__init__(output_dir, max_results)
+        self.cookies_file = cookies_file or os.environ.get("YOUTUBE_COOKIES_FILE")
+        if self.cookies_file:
+            logger.info("YouTube cookies loaded from: %s", self.cookies_file)
+        else:
+            logger.warning(
+                "No YouTube cookies file — downloads may be blocked on cloud IPs. "
+                "Set YOUTUBE_COOKIES_FILE to a cookies.txt path."
+            )
+
+    def _cookies_args(self) -> list[str]:
+        """Return yt-dlp --cookies argument if a cookies file is available."""
+        if self.cookies_file and os.path.exists(self.cookies_file):
+            return ["--cookies", self.cookies_file]
+        return []
 
     def search(self, queries: list[str], hours_back: int = 24) -> list[VideoMetadata]:
         """
@@ -86,6 +116,7 @@ class YouTubeCollector(BaseCollector):
                     "--no-warnings",
                     "--quiet",
                     "--user-agent", _USER_AGENT,
+                    *self._cookies_args(),
                     f"ytsearch5:{query}",
                 ]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
@@ -164,6 +195,7 @@ class YouTubeCollector(BaseCollector):
             "--user-agent", _USER_AGENT,
             "--no-warnings",
             "--quiet",
+            *self._cookies_args(),
             metadata.url,
         ]
         _run_with_retry(video_cmd)

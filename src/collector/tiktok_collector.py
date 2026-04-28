@@ -47,6 +47,9 @@ class TikTokCollector(BaseCollector):
     """
     Collects TikTok videos via yt-dlp hashtag/search pages.
 
+    Requires cookies from a logged-in TikTok browser session.
+    Set TIKTOK_COOKIES_FILE env var to a Netscape cookies.txt path.
+
     TikTok does not have a public API. This collector uses yt-dlp to
     fetch video lists from hashtag pages and downloads up to max_results.
     Note: TikTok actively blocks scrapers — failures are expected and logged.
@@ -56,6 +59,33 @@ class TikTokCollector(BaseCollector):
 
     # TikTok hashtag page template
     _HASHTAG_URL = "https://www.tiktok.com/tag/{tag}"
+
+    def __init__(self, output_dir: str, max_results: int = 20, cookies_file: Optional[str] = None):
+        """
+        Initialize the TikTok collector.
+
+        Args:
+            output_dir: Directory for downloaded files.
+            max_results: Maximum videos to collect per run.
+            cookies_file: Path to Netscape-format cookies.txt exported from
+                          a logged-in TikTok browser session.
+                          Falls back to TIKTOK_COOKIES_FILE env var.
+        """
+        super().__init__(output_dir, max_results)
+        self.cookies_file = cookies_file or os.environ.get("TIKTOK_COOKIES_FILE")
+        if self.cookies_file:
+            logger.info("TikTok cookies loaded from: %s", self.cookies_file)
+        else:
+            logger.warning(
+                "No TikTok cookies file — searches will likely fail. "
+                "Set TIKTOK_COOKIES_FILE to a cookies.txt path."
+            )
+
+    def _cookies_args(self) -> list[str]:
+        """Return yt-dlp --cookies argument if a cookies file is available."""
+        if self.cookies_file and os.path.exists(self.cookies_file):
+            return ["--cookies", self.cookies_file]
+        return []
 
     def search(self, queries: list[str], hours_back: int = 24) -> list[VideoMetadata]:
         """
@@ -90,6 +120,7 @@ class TikTokCollector(BaseCollector):
                         "AppleWebKit/605.1.15 (KHTML, like Gecko) "
                         "Version/17.0 Mobile/15E148 Safari/604.1"
                     ),
+                    *self._cookies_args(),
                     url,
                 ]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
@@ -162,6 +193,7 @@ class TikTokCollector(BaseCollector):
             ),
             "--no-warnings",
             "--quiet",
+            *self._cookies_args(),
             metadata.url,
         ]
         _run_with_retry(video_cmd)

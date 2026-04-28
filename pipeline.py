@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 from src.collector.youtube_collector import YouTubeCollector
@@ -71,12 +72,39 @@ def _get_config() -> dict:
         "drive_refresh_token": os.environ.get("GOOGLE_DRIVE_REFRESH_TOKEN"),
         "drive_folder_id": os.environ.get("GOOGLE_DRIVE_FOLDER_ID"),
         "hours_back": int(os.environ.get("HOURS_BACK", "24")),
+        "youtube_cookies": os.environ.get("YOUTUBE_COOKIES"),
+        "tiktok_cookies": os.environ.get("TIKTOK_COOKIES"),
     }
 
 
 # ---------------------------------------------------------------------------
 # Pipeline steps
 # ---------------------------------------------------------------------------
+
+def _write_cookies_file(content: str, prefix: str) -> str:
+    """
+    Write cookie content to a temporary file and return its path.
+
+    GitHub Actions stores cookies as a secret string. This function
+    writes it to a temp file so yt-dlp can read it via --cookies.
+
+    Args:
+        content: Netscape-format cookies.txt content.
+        prefix: Filename prefix (e.g. 'youtube' or 'tiktok').
+
+    Returns:
+        Absolute path to the temporary cookies file.
+    """
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", prefix=f"{prefix}_cookies_", suffix=".txt",
+        delete=False, encoding="utf-8",
+    )
+    tmp.write(content)
+    tmp.flush()
+    tmp.close()
+    logger.info("Wrote %s cookies to temp file: %s", prefix, tmp.name)
+    return tmp.name
+
 
 def _load_keywords(path: str) -> tuple[list[str], list[str]]:
     """
@@ -130,10 +158,26 @@ def run_pipeline() -> None:
     yt_queries, tt_queries = _load_keywords(config["keywords_path"])
     logger.info("Loaded %d YouTube queries, %d TikTok queries", len(yt_queries), len(tt_queries))
 
+    # --- Write cookies to temp files if provided as env vars ---
+    yt_cookies_file = None
+    tt_cookies_file = None
+    if config["youtube_cookies"]:
+        yt_cookies_file = _write_cookies_file(config["youtube_cookies"], "youtube")
+    if config["tiktok_cookies"]:
+        tt_cookies_file = _write_cookies_file(config["tiktok_cookies"], "tiktok")
+
     # --- Collectors ---
     max_per_platform = max(1, config["max_videos"] // 2)
-    yt_collector = YouTubeCollector(output_dir=storage.videos_dir, max_results=max_per_platform)
-    tt_collector = TikTokCollector(output_dir=storage.videos_dir, max_results=max_per_platform)
+    yt_collector = YouTubeCollector(
+        output_dir=storage.videos_dir,
+        max_results=max_per_platform,
+        cookies_file=yt_cookies_file,
+    )
+    tt_collector = TikTokCollector(
+        output_dir=storage.videos_dir,
+        max_results=max_per_platform,
+        cookies_file=tt_cookies_file,
+    )
 
     # --- Processors ---
     transcriber = AudioTranscriber(
