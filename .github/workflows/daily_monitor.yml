@@ -1,0 +1,107 @@
+name: Daily Disinformation Monitor
+
+# Runs daily at 10:00 UTC = 07:00 BRT (UTC-3)
+on:
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:   # Allow manual trigger from GitHub UI
+    inputs:
+      max_videos:
+        description: "Max videos to process (overrides default)"
+        required: false
+        default: "20"
+      hours_back:
+        description: "Hours back to search"
+        required: false
+        default: "24"
+
+permissions:
+  contents: write   # Required to commit the updated docs/index.html back to the repo
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55   # Stay well under GitHub Actions 6h limit
+
+    steps:
+      # ----------------------------------------------------------------
+      # 1. Checkout repository
+      # ----------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ----------------------------------------------------------------
+      # 2. Set up Python
+      # ----------------------------------------------------------------
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      # ----------------------------------------------------------------
+      # 3. Install system dependencies (ffmpeg)
+      # ----------------------------------------------------------------
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y ffmpeg
+
+      # ----------------------------------------------------------------
+      # 4. Install Python dependencies
+      # ----------------------------------------------------------------
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ----------------------------------------------------------------
+      # 5. Run pipeline
+      # ----------------------------------------------------------------
+      - name: Run pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20' }}
+          ENABLE_GOOGLE_DRIVE: ${{ vars.ENABLE_GOOGLE_DRIVE || 'false' }}
+          GOOGLE_DRIVE_CREDENTIALS_B64: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS_B64 }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          MAX_VIDEOS_PER_RUN: ${{ github.event.inputs.max_videos || vars.MAX_VIDEOS_PER_RUN || '20' }}
+          HOURS_BACK: ${{ github.event.inputs.hours_back || '24' }}
+          SCREENSHOT_INTERVAL_SECONDS: "3"
+          DATA_DIR: "data"
+          DOCS_DIR: "docs"
+          KEYWORDS_PATH: "config/keywords.json"
+        run: python pipeline.py
+
+      # ----------------------------------------------------------------
+      # 6. Commit updated HTML report back to repository
+      # ----------------------------------------------------------------
+      - name: Commit updated report
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add docs/index.html docs/report_*.html || true
+          git diff --cached --quiet || git commit -m "chore: update daily report $(date -u +%Y-%m-%d)"
+
+      # ----------------------------------------------------------------
+      # 7. Push to GitHub (triggers GitHub Pages rebuild)
+      # ----------------------------------------------------------------
+      - name: Push report
+        uses: ad-m/github-push-action@v0.8.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+
+      # ----------------------------------------------------------------
+      # 8. Upload run artifacts (data/ JSON results) for debugging
+      # ----------------------------------------------------------------
+      - name: Upload run artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run-data-${{ github.run_number }}
+          path: data/
+          retention-days: 7
+          if-no-files-found: warn

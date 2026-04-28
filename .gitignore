@@ -1,0 +1,33 @@
+# Environment & secrets
+.env
+*.env
+service-account.json
+*credentials*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# Pipeline data (raw downloads — not committed)
+data/*/videos/
+data/*/screenshots/
+
+# Keep run summaries and reports in data/ for reference
+# (They are also committed to docs/ for GitHub Pages)
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
