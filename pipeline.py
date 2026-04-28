@@ -66,7 +66,9 @@ def _get_config() -> dict:
         "keywords_path": os.environ.get("KEYWORDS_PATH", "config/keywords.json"),
         "screenshot_interval": int(os.environ.get("SCREENSHOT_INTERVAL_SECONDS", "3")),
         "enable_drive": os.environ.get("ENABLE_GOOGLE_DRIVE", "false").lower() == "true",
-        "drive_credentials_b64": os.environ.get("GOOGLE_DRIVE_CREDENTIALS_B64"),
+        "drive_client_id": os.environ.get("GOOGLE_DRIVE_CLIENT_ID"),
+        "drive_client_secret": os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET"),
+        "drive_refresh_token": os.environ.get("GOOGLE_DRIVE_REFRESH_TOKEN"),
         "drive_folder_id": os.environ.get("GOOGLE_DRIVE_FOLDER_ID"),
         "hours_back": int(os.environ.get("HOURS_BACK", "24")),
     }
@@ -257,7 +259,9 @@ def run_pipeline() -> None:
         logger.info("Uploading results to Google Drive…")
         try:
             uploader = DriveUploader(
-                credentials_b64=config["drive_credentials_b64"],
+                client_id=config["drive_client_id"],
+                client_secret=config["drive_client_secret"],
+                refresh_token=config["drive_refresh_token"],
                 folder_id=config["drive_folder_id"],
             )
             run_name = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
