@@ -1,9 +1,9 @@
 name: Daily Disinformation Monitor
 
-# Runs daily at 10:00 UTC = 07:00 BRT (UTC-3)
+# Runs daily at 22:00 UTC = 19:00 BRT (UTC-3)
 on:
   schedule:
-    - cron: "0 10 * * *"
+    - cron: "0 22 * * *"
   workflow_dispatch:   # Allow manual trigger from GitHub UI
     inputs:
       max_videos:

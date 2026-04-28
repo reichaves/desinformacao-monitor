@@ -98,30 +98,44 @@ class YouTubeCollector(BaseCollector):
         Search YouTube for recent videos matching the given queries.
 
         Uses yt-dlp ytsearchN: prefix to search without an API key.
+        Results are hard-filtered to only include videos published within
+        the `hours_back` window. Videos without a parseable timestamp are
+        kept (benefit of the doubt) but flagged in the log.
 
         Args:
             queries: List of search strings / hashtags.
-            hours_back: Approximate recency filter (best-effort).
+            hours_back: Maximum age of videos to include, in hours.
 
         Returns:
-            Deduplicated list of VideoMetadata sorted by view count descending.
+            Deduplicated list of VideoMetadata sorted by view count descending,
+            containing only videos published within the recency window.
         """
+        from datetime import timedelta
+
+        cutoff: datetime = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+        # yt-dlp --dateafter uses YYYYMMDD format (date-level granularity).
+        # We subtract one extra day so border cases aren't dropped by yt-dlp
+        # before our stricter hour-level post-filter can evaluate them.
+        dateafter_str: str = (cutoff - timedelta(days=1)).strftime("%Y%m%d")
+
         seen_ids: set[str] = set()
         results: list[VideoMetadata] = []
+        skipped_old: int = 0
 
         for query in queries[:15]:
             try:
-                # ytsearch5: returns the top 5 results for the query
+                # Request 15 candidates per query — many will be filtered by date
                 cmd = [
                     "yt-dlp",
                     "--flat-playlist",
-                    "--playlist-end", "5",
+                    "--playlist-end", "15",
                     "--dump-json",
                     "--no-warnings",
                     "--quiet",
+                    "--dateafter", dateafter_str,
                     "--user-agent", _USER_AGENT,
                     *self._cookies_args(),
-                    f"ytsearch5:{query}",
+                    f"ytsearch15:{query}",
                 ]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
                 if result.returncode != 0:
@@ -145,6 +159,17 @@ class YouTubeCollector(BaseCollector):
                         view_count = int(info.get("view_count") or 0)
                         like_count = int(info.get("like_count") or 0)
                         published_at = _ts_to_dt(info.get("timestamp"))
+
+                        # Hard date filter — drop videos older than hours_back.
+                        # Videos with no timestamp are kept (timestamp unavailable
+                        # in flat-playlist mode for some entries).
+                        if published_at is not None and published_at < cutoff:
+                            skipped_old += 1
+                            logger.debug(
+                                "Skipping old video %s (published %s, cutoff %s)",
+                                vid_id, published_at.isoformat(), cutoff.isoformat(),
+                            )
+                            continue
 
                         vid_url = (
                             info.get("webpage_url")
@@ -174,8 +199,17 @@ class YouTubeCollector(BaseCollector):
             except Exception as exc:
                 logger.warning("YouTube search error for query '%s': %s", query, exc)
 
+        if skipped_old:
+            logger.info(
+                "YouTube date filter: dropped %d video(s) older than %dh (cutoff: %s)",
+                skipped_old, hours_back, cutoff.isoformat(),
+            )
+
         results.sort(key=lambda v: v.view_count, reverse=True)
-        logger.info("YouTube search found %d candidate videos", len(results))
+        logger.info(
+            "YouTube search found %d candidate video(s) within the last %dh",
+            len(results), hours_back,
+        )
         return results
 
     def fetch_transcript(self, video_id: str) -> Optional[str]:

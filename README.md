@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Gemini](https://img.shields.io/badge/IA-Gemini%202.5%20Flash-orange)](https://aistudio.google.com)
-[![Actions](https://img.shields.io/badge/Automação-GitHub%20Actions-lightgrey)](https://github.com/reichaves/desinformacao-monitor/actions)
+[![Actions](https://img.shields.io/badge/Automação-GitHub%20Actions%2019h%20BRT-lightgrey)](https://github.com/reichaves/desinformacao-monitor/actions)
 
 Pipeline automatizado que monitora vídeos de **desinformação, ataques à imprensa e discursos antidemocráticos no Brasil** no YouTube e TikTok — com análise por IA (Gemini), relatório interativo publicado no GitHub Pages e execução diária via GitHub Actions.
 
@@ -205,7 +205,7 @@ Veja o [Guia de Deploy completo](DEPLOY_GUIDE.md) para instruções passo a pass
 | `GOOGLE_DRIVE_REFRESH_TOKEN` | OAuth Refresh Token (gerado por `setup_drive_auth.py`) |
 | `GOOGLE_DRIVE_FOLDER_ID` | ID da pasta no Drive |
 
-O workflow roda todos os dias às **07h00 (horário de Brasília)** e:
+O workflow roda todos os dias às **19h00 (horário de Brasília)** e:
 - Coleta vídeos
 - Analisa com Gemini
 - Commita o `docs/index.html` atualizado no repositório
@@ -249,7 +249,7 @@ Defina `GEMINI_MODEL` como variável de ambiente ou GitHub Variable. Modelos com
 ## Limitações conhecidas (Versão Beta)
 
 - **Downloads bloqueados no GitHub Actions:** IPs de datacenter são bloqueados pelo YouTube e TikTok. O pipeline usa um fallback automático (API de legendas + thumbnails para YouTube; scraping de texto + screenshot para TikTok), mas a análise fica menos completa do que com o vídeo completo.
-- **TikTok sem timestamp:** O TikTok não expõe a data de publicação no scraping por browser — todos os vídeos TikTok aparecem com `published_at = null`.
+- **TikTok timestamps via snowflake ID:** Os IDs de vídeo do TikTok são snowflake IDs — o timestamp de criação é decodificado dos primeiros 32 bits do ID numérico. Funciona na prática mas pode ter pequenas imprecisões dependendo do formato do ID.
 - **Severidade requer verificação humana:** A classificação de severidade (0–5) é uma estimativa do modelo de IA e pode conter erros. Não publique resultados sem revisão editorial.
 - **Quota Gemini:** Com 20 vídeos/dia e `gemini-2.5-flash-preview`, o custo estimado é < USD 2/mês no plano pago. No plano gratuito, o rate limit pode ser atingido.
 

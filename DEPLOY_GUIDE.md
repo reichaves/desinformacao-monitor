@@ -227,7 +227,7 @@ Edite `config/keywords.json` e faça commit. As mudanças entram na próxima exe
 
 ### Ajustar frequência
 
-Edite `cron: "0 10 * * *"` em `.github/workflows/daily_monitor.yml`.
+Edite `cron: "0 22 * * *"` em `.github/workflows/daily_monitor.yml` (atualmente 19h BRT = 22h UTC).
 Referência: crontab.guru
 
 ### Ver artefatos de cada execução

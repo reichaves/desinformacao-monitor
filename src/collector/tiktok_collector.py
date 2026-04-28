@@ -15,7 +15,7 @@ import logging
 import os
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from .base_collector import BaseCollector, VideoMetadata
@@ -103,12 +103,16 @@ class TikTokCollector(BaseCollector):
         """
         Scrape TikTok hashtag pages using Playwright to discover video URLs.
 
+        TikTok video IDs are snowflake IDs whose upper 32 bits encode the
+        Unix creation timestamp. This is used to filter out videos older than
+        `hours_back`, since the page layout does not expose plain timestamps.
+
         Args:
             queries: Hashtag names or search terms.
-            hours_back: Not used (TikTok doesn't expose timestamps in scrape).
+            hours_back: Maximum age of videos to include, in hours.
 
         Returns:
-            List of VideoMetadata objects with URLs ready for download.
+            List of VideoMetadata objects within the recency window.
         """
         if not _playwright_available():
             logger.warning("Playwright not available — skipping TikTok search.")
@@ -116,8 +120,11 @@ class TikTokCollector(BaseCollector):
 
         from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
+        cutoff: datetime = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+
         seen_ids: set[str] = set()
         results: list[VideoMetadata] = []
+        skipped_old: int = 0
 
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
@@ -146,11 +153,23 @@ class TikTokCollector(BaseCollector):
                         "els => els.map(e => e.href)",
                     )
 
-                    for link in links[:5]:
+                    for link in links[:10]:
                         vid_id = _extract_tiktok_id(link)
                         if not vid_id or vid_id in seen_ids:
                             continue
                         seen_ids.add(vid_id)
+
+                        # Decode creation time from snowflake ID
+                        published_at = _snowflake_to_dt(vid_id)
+
+                        # Hard date filter — drop if we decoded a date and it's old
+                        if published_at is not None and published_at < cutoff:
+                            skipped_old += 1
+                            logger.debug(
+                                "Skipping old TikTok %s (published %s)",
+                                vid_id, published_at.isoformat(),
+                            )
+                            continue
 
                         # Try to get title from page
                         title = tag
@@ -166,7 +185,7 @@ class TikTokCollector(BaseCollector):
                                 url=link,
                                 platform=self.PLATFORM,
                                 channel="",
-                                published_at=None,
+                                published_at=published_at,
                                 duration_seconds=0,
                                 view_count=0,
                                 like_count=0,
@@ -186,7 +205,16 @@ class TikTokCollector(BaseCollector):
 
             browser.close()
 
-        logger.info("TikTok search found %d candidate videos", len(results))
+        if skipped_old:
+            logger.info(
+                "TikTok date filter: dropped %d video(s) older than %dh (cutoff: %s)",
+                skipped_old, hours_back, cutoff.isoformat(),
+            )
+
+        logger.info(
+            "TikTok search found %d candidate video(s) within the last %dh",
+            len(results), hours_back,
+        )
         return results
 
     def _scrape_video_page(self, metadata: VideoMetadata) -> VideoMetadata:
@@ -323,6 +351,33 @@ class TikTokCollector(BaseCollector):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _snowflake_to_dt(video_id: str) -> Optional[datetime]:
+    """
+    Decode the creation timestamp from a TikTok snowflake video ID.
+
+    TikTok video IDs are 64-bit integers whose upper 32 bits encode a Unix
+    timestamp in seconds. This gives ~second-level precision without any
+    extra API call.
+
+    Args:
+        video_id: Numeric TikTok video ID string (19 digits).
+
+    Returns:
+        UTC datetime of creation, or None if the ID cannot be decoded or
+        the decoded timestamp falls outside a plausible range (2020–now+1d).
+    """
+    try:
+        ts = int(video_id) >> 32
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+        lo = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        hi = datetime.now(timezone.utc) + timedelta(days=1)
+        if lo <= dt <= hi:
+            return dt
+    except Exception:
+        pass
+    return None
+
 
 def _extract_tiktok_id(url: str) -> Optional[str]:
     """Extract the numeric video ID from a TikTok video URL."""
