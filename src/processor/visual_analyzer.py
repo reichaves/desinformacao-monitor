@@ -22,7 +22,7 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "gemini-2.0-flash"
+_DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
 _MAX_FRAMES_PER_BATCH = 10  # Gemini context: send up to 10 frames at once
 _MAX_IMAGE_SIDE = 512       # Resize frames to save tokens
 

@@ -21,7 +21,7 @@ from google.genai import types
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "gemini-2.0-flash"
+_DEFAULT_MODEL = "gemini-3.1-flash-lite-preview"
 _TRANSCRIPTION_PROMPT = (
     "Você é um transcritor profissional de áudio em português brasileiro. "
     "Transcreva TODO o áudio deste arquivo, palavra por palavra, com precisão máxima. "

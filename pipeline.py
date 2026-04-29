@@ -60,7 +60,7 @@ def _get_config() -> dict:
 
     return {
         "gemini_api_key": gemini_key,
-        "gemini_model": os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+        "gemini_model": os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
         "max_videos": int(os.environ.get("MAX_VIDEOS_PER_RUN", "20")),
         "data_dir": os.environ.get("DATA_DIR", "data"),
         "docs_dir": os.environ.get("DOCS_DIR", "docs"),

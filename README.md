@@ -6,7 +6,7 @@
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-blue)](https://github.com/reichaves/desinformacao-monitor)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Gemini](https://img.shields.io/badge/IA-Gemini%202.0%20Flash-orange)](https://aistudio.google.com)
+[![Gemini](https://img.shields.io/badge/IA-Gemini%203.1%20Flash%20Lite-orange)](https://aistudio.google.com)
 [![Actions](https://img.shields.io/badge/Automação-GitHub%20Actions%2019h%20BRT-lightgrey)](https://github.com/reichaves/desinformacao-monitor/actions)
 
 Pipeline automatizado que monitora vídeos de **desinformação, ataques à imprensa e discursos antidemocráticos no Brasil** no YouTube e TikTok — com análise por IA (Gemini), relatório interativo publicado no GitHub Pages e execução diária via GitHub Actions.
@@ -146,8 +146,8 @@ Crie um arquivo `.env` na raiz do projeto:
 # Obrigatório
 GEMINI_API_KEY=sua_chave_aqui
 
-# Opcional — modelo Gemini (padrão: gemini-2.0-flash)
-GEMINI_MODEL=gemini-2.0-flash
+# Opcional — modelo Gemini (padrão: gemini-3.1-flash-lite-preview)
+GEMINI_MODEL=gemini-3.1-flash-lite-preview
 
 # Opcional — controle de volume
 MAX_VIDEOS_PER_RUN=20
@@ -236,7 +236,7 @@ O prompt de análise está em `src/processor/content_analyzer.py`, na variável 
 
 ### Mudar o modelo Gemini
 
-Defina `GEMINI_MODEL` como variável de ambiente ou GitHub Variable. Modelos compatíveis: `gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-1.5-pro`, etc.
+Defina `GEMINI_MODEL` como variável de ambiente ou GitHub Variable. Modelos compatíveis: `gemini-3.1-flash-lite-preview`, `gemini-3.1-flash-lite-preview-lite`, `gemini-1.5-pro`, etc.
 
 ### Adicionar uma nova plataforma
 
@@ -253,7 +253,7 @@ Defina `GEMINI_MODEL` como variável de ambiente ou GitHub Variable. Modelos com
 - **TikTok timestamps via snowflake ID:** Os IDs de vídeo TikTok são snowflake IDs — o timestamp de criação é decodificado dos primeiros 32 bits. Funciona na prática com margem de ~1 segundo de precisão.
 - **Análise conservadora por design:** O prompt do Gemini é calibrado para minimizar falsos positivos. A maioria dos vídeos coletados por palavras-chave não é desinformação — apenas menciona os temas. O campo `confidence` (0–100) indica a confiança do modelo na classificação.
 - **Severidade requer verificação humana:** A classificação (0–5) é estimativa automatizada. Nunca publique resultados sem revisão editorial.
-- **Quota Gemini:** Com 20 vídeos/dia e `gemini-2.0-flash`, custo estimado < USD 2/mês no plano pago.
+- **Quota Gemini:** Com 20 vídeos/dia e `gemini-3.1-flash-lite-preview`, custo estimado < USD 2/mês no plano pago.
 
 ---
 
