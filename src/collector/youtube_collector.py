@@ -136,7 +136,7 @@ class YouTubeCollector(BaseCollector):
                     "--dateafter", dateafter_str,
                     "--user-agent", _USER_AGENT,
                     *self._cookies_args(),
-                    f"ytsearchdate15:{query}",
+                    f"ytsearch15:{query}",
                 ]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
                 if result.returncode != 0:

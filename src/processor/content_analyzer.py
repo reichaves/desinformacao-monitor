@@ -22,7 +22,7 @@ from .visual_analyzer import VisualAnalysisResult
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "gemini-2.5-flash-preview-05-20"
+_DEFAULT_MODEL = "gemini-2.0-flash"
 
 
 @dataclass
