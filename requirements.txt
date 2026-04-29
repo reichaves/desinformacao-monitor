@@ -8,7 +8,7 @@ google-auth-oauthlib>=1.2.0
 # Video collection
 yt-dlp>=2024.8.6
 playwright>=1.44.0
-youtube-transcript-api>=0.6.2
+youtube-transcript-api>=1.0.0
 
 # Image processing
 Pillow>=10.3.0

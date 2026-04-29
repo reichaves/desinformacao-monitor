@@ -232,18 +232,29 @@ class YouTubeCollector(BaseCollector):
             Full transcript as a single string, or None if unavailable.
         """
         try:
-            from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            # Prefer Portuguese; fall back to any available language
+            from youtube_transcript_api import YouTubeTranscriptApi
+            # youtube-transcript-api v1.0+ uses instance API; v0.x uses class methods.
+            # Try v1.0+ first (fetch with language preference list).
             try:
-                transcript = transcript_list.find_transcript(["pt", "pt-BR", "pt-PT"])
-            except NoTranscriptFound:
+                api = YouTubeTranscriptApi()
+                fetched = api.fetch(
+                    video_id,
+                    languages=["pt", "pt-BR", "pt-PT", "en", "es"],
+                )
+                text = " ".join(t.text for t in fetched)
+            except TypeError:
+                # Fallback: v0.x static API
+                from youtube_transcript_api import NoTranscriptFound  # type: ignore[attr-defined]
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)  # type: ignore[attr-defined]
                 try:
-                    transcript = transcript_list.find_generated_transcript(["pt", "pt-BR", "en", "es"])
+                    tr = transcript_list.find_transcript(["pt", "pt-BR", "pt-PT"])
                 except NoTranscriptFound:
-                    transcript = next(iter(transcript_list))
-            entries = transcript.fetch()
-            text = " ".join(e.get("text", "") for e in entries)
+                    try:
+                        tr = transcript_list.find_generated_transcript(["pt", "pt-BR", "en", "es"])
+                    except NoTranscriptFound:
+                        tr = next(iter(transcript_list))
+                entries = tr.fetch()
+                text = " ".join(e.get("text", "") for e in entries)
             logger.info("Fetched transcript for %s (%d chars)", video_id, len(text))
             return text.strip() or None
         except Exception as exc:
