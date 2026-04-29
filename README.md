@@ -66,7 +66,7 @@ Pipeline automatizado que monitora vídeos de **desinformação, ataques à impr
    - *Fallback automático:* se o download for bloqueado (IPs de datacenter), usa a API de legendas do YouTube (sem download) e scraping Playwright do TikTok
 3. **Transcrição** palavra a palavra via Gemini File API (ou legendas pré-capturadas no fallback)
 4. **Análise visual** de frames/thumbnails — Gemini detecta textos em tela, indicadores visuais de desinformação, personalidades e símbolos
-5. **Classificação por IA**: tipo de desinformação (`saúde`, `eleitoral`, `institucional`, `mídia`, `outro`, `nenhum`), severidade 0–5, alegações falsas, contra-narrativa factual
+5. **Classificação por IA com prompt conservador**: tipo de desinformação (`saúde`, `eleitoral`, `institucional`, `mídia`, `outro`, `nenhum`), severidade 0–5, grau de confiança (0–100), alegações falsas, contra-narrativa factual. O modelo é calibrado para minimizar falsos positivos — a maioria dos vídeos retorna `nenhum/0`
 6. **Relatório HTML** interativo com filtros, gráficos e alertas de alta severidade
 7. **Commit automático** do relatório atualizado no GitHub Pages
 
@@ -248,10 +248,12 @@ Defina `GEMINI_MODEL` como variável de ambiente ou GitHub Variable. Modelos com
 
 ## Limitações conhecidas (Versão Beta)
 
-- **Downloads bloqueados no GitHub Actions:** IPs de datacenter são bloqueados pelo YouTube e TikTok. O pipeline usa um fallback automático (API de legendas + thumbnails para YouTube; scraping de texto + screenshot para TikTok), mas a análise fica menos completa do que com o vídeo completo.
-- **TikTok timestamps via snowflake ID:** Os IDs de vídeo do TikTok são snowflake IDs — o timestamp de criação é decodificado dos primeiros 32 bits do ID numérico. Funciona na prática mas pode ter pequenas imprecisões dependendo do formato do ID.
-- **Severidade requer verificação humana:** A classificação de severidade (0–5) é uma estimativa do modelo de IA e pode conter erros. Não publique resultados sem revisão editorial.
-- **Quota Gemini:** Com 20 vídeos/dia e `gemini-2.5-flash-preview`, o custo estimado é < USD 2/mês no plano pago. No plano gratuito, o rate limit pode ser atingido.
+- **Downloads bloqueados no GitHub Actions:** IPs de datacenter são bloqueados pelo YouTube e TikTok. O pipeline usa fallback automático — API de legendas do YouTube (`youtube-transcript-api`) e scraping Playwright do TikTok — mas a análise fica menos rica do que com áudio completo.
+- **Filtragem de data via `ytsearchdate`:** A busca usa `ytsearchdate:` (mais recentes primeiro) + `--dateafter` + filtro pós-coleta por `published_at`. Em modo `--flat-playlist`, o campo `upload_date` (YYYYMMDD) é parseado como fallback do `timestamp` Unix.
+- **TikTok timestamps via snowflake ID:** Os IDs de vídeo TikTok são snowflake IDs — o timestamp de criação é decodificado dos primeiros 32 bits. Funciona na prática com margem de ~1 segundo de precisão.
+- **Análise conservadora por design:** O prompt do Gemini é calibrado para minimizar falsos positivos. A maioria dos vídeos coletados por palavras-chave não é desinformação — apenas menciona os temas. O campo `confidence` (0–100) indica a confiança do modelo na classificação.
+- **Severidade requer verificação humana:** A classificação (0–5) é estimativa automatizada. Nunca publique resultados sem revisão editorial.
+- **Quota Gemini:** Com 20 vídeos/dia e `gemini-2.5-flash-preview`, custo estimado < USD 2/mês no plano pago.
 
 ---
 

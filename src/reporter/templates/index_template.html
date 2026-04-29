@@ -4,130 +4,544 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Monitor de Desinformação — Reinaldo Chaves</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
-    .severity-0 { background-color: #d1fae5; color: #065f46; }
-    .severity-1 { background-color: #fef3c7; color: #92400e; }
-    .severity-2 { background-color: #fed7aa; color: #9a3412; }
-    .severity-3 { background-color: #fecaca; color: #7f1d1d; }
-    .severity-4 { background-color: #f87171; color: #fff; }
-    .severity-5 { background-color: #dc2626; color: #fff; }
-    .badge { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:.75rem; font-weight:600; }
-    .row-hidden { display: none !important; }
+    /* ── CSS Custom Properties ── */
+    :root {
+      --bg: #0c0e14;
+      --surface: #13161f;
+      --surface-raised: #1a1e2a;
+      --surface-hover: #1f2435;
+      --border: rgba(255,255,255,0.07);
+      --border-strong: rgba(255,255,255,0.14);
+      --text: #e2e5f0;
+      --text-dim: #7c829a;
+      --text-muted: #454a60;
+      --font-head: 'Instrument Serif', Georgia, serif;
+      --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+      /* severity palette */
+      --sev0-bg: rgba(52,211,153,0.10); --sev0-fg: #34d399;
+      --sev1-bg: rgba(251,191,36,0.12);  --sev1-fg: #fbbf24;
+      --sev2-bg: rgba(251,146,60,0.14);  --sev2-fg: #fb923c;
+      --sev3-bg: rgba(248,113,113,0.15); --sev3-fg: #f87171;
+      --sev4-bg: rgba(239,68,68,0.20);   --sev4-fg: #ef4444;
+      --sev5-bg: rgba(220,38,38,0.30);   --sev5-fg: #dc2626;
+      /* platforms */
+      --yt: #ff3c3c; --yt-dim: rgba(255,60,60,0.12);
+      --tt: #e040fb; --tt-dim: rgba(224,64,251,0.12);
+      /* accent */
+      --accent: #e05555; --accent-dim: rgba(224,85,85,0.10);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f2f3f7;
+        --surface: #ffffff;
+        --surface-raised: #eef0f5;
+        --surface-hover: #e8eaf1;
+        --border: rgba(0,0,0,0.07);
+        --border-strong: rgba(0,0,0,0.14);
+        --text: #141620;
+        --text-dim: #5a5f75;
+        --text-muted: #9ca3b8;
+        --sev0-bg: rgba(16,185,129,0.10); --sev0-fg: #059669;
+        --sev1-bg: rgba(217,119,6,0.10);  --sev1-fg: #d97706;
+        --sev2-bg: rgba(234,88,12,0.10);  --sev2-fg: #ea580c;
+        --sev3-bg: rgba(220,38,38,0.10);  --sev3-fg: #dc2626;
+        --sev4-bg: rgba(185,28,28,0.15);  --sev4-fg: #b91c1c;
+        --sev5-bg: rgba(127,29,29,0.15);  --sev5-fg: #7f1d1d;
+        --yt-dim: rgba(220,38,38,0.08);
+        --tt-dim: rgba(168,85,247,0.08);
+        --accent-dim: rgba(220,38,38,0.08);
+      }
+    }
+
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; min-width: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px),
+        radial-gradient(at 80% 10%, rgba(224,85,85,0.06) 0, transparent 50%);
+      background-size: 28px 28px, 100% 100%;
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(14px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    @keyframes fadeScale {
+      from { opacity:0; transform:scale(0.92); }
+      to   { opacity:1; transform:scale(1); }
+    }
+    .fade-in {
+      opacity:0;
+      animation: fadeUp 0.45s cubic-bezier(.22,.68,0,1.2) forwards;
+      animation-delay: calc(var(--i,0) * 55ms);
+    }
+    .fade-scale {
+      opacity:0;
+      animation: fadeScale 0.4s ease forwards;
+      animation-delay: calc(var(--i,0) * 70ms);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .fade-in, .fade-scale { opacity:1; animation:none; }
+    }
+
+    /* ── Layout ── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 1.25rem; }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 0 1.25rem;
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(12,14,20,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    @media (prefers-color-scheme: light) {
+      header { background: rgba(242,243,247,0.92); }
+    }
+    .header-inner {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    }
+    .header-brand { display:flex; align-items:center; gap:0.75rem; }
+    .header-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--accent-dim);
+      border: 1px solid rgba(224,85,85,0.3);
+      display:grid; place-items:center; font-size:1.1rem; flex-shrink:0;
+    }
+    h1 {
+      font-family: var(--font-head);
+      font-size: 1.35rem; font-weight: 400; margin: 0;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .header-sub {
+      font-size: 0.72rem; font-family: var(--font-mono);
+      color: var(--text-dim); text-transform: uppercase;
+      letter-spacing: 0.06em; margin-top: 0.1rem;
+    }
+    .header-meta {
+      text-align: right; font-family: var(--font-mono);
+      font-size: 0.72rem; color: var(--text-dim);
+      line-height: 1.8;
+    }
+    .header-meta strong { color: var(--text); font-weight: 500; }
+    .beta-badge {
+      display:inline-flex; align-items:center; gap:0.3rem;
+      background: rgba(251,146,60,0.12); color:#fb923c;
+      border: 1px solid rgba(251,146,60,0.25);
+      font-family: var(--font-mono); font-size: 0.65rem;
+      padding: 0.15rem 0.55rem; border-radius: 100px;
+      text-transform:uppercase; letter-spacing:0.06em;
+      margin-left: 0.5rem; vertical-align: middle;
+    }
+
+    /* ── KPI Cards ── */
+    .kpi-grid {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.75rem;
+      margin: 1.5rem 0;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.1rem 1.25rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .kpi-card:hover {
+      border-color: var(--border-strong);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .kpi-label {
+      font-family: var(--font-mono); font-size: 0.68rem;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-dim); margin-bottom: 0.4rem;
+      display:flex; align-items:center; gap:0.4rem;
+    }
+    .kpi-label::before {
+      content:''; width:6px; height:6px; border-radius:50%;
+      background: var(--text-muted);
+    }
+    .kpi-label[data-color="red"]::before   { background: var(--sev3-fg); }
+    .kpi-label[data-color="yt"]::before    { background: var(--yt); }
+    .kpi-label[data-color="tt"]::before    { background: var(--tt); }
+    .kpi-value {
+      font-family: var(--font-head); font-size: 2.4rem;
+      font-weight: 400; line-height: 1; color: var(--text);
+    }
+    .kpi-value.red  { color: var(--sev3-fg); }
+    .kpi-value.yt   { color: var(--yt); }
+    .kpi-value.tt   { color: var(--tt); }
+    .kpi-note { font-size:0.72rem; color:var(--text-dim); margin-top:0.25rem; }
+
+    /* ── Charts Section ── */
+    .charts-grid {
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width:900px) {
+      .charts-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width:600px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem 1.25rem;
+    }
+    .chart-title {
+      font-family: var(--font-mono); font-size: 0.68rem;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-dim); margin-bottom: 0.75rem;
+    }
+
+    /* ── Alert Cards ── */
+    .alerts-section { margin-bottom: 1.5rem; }
+    .section-heading {
+      font-family: var(--font-head);
+      font-size: 1.05rem; font-weight: 400;
+      color: var(--text); margin: 0 0 0.75rem;
+      display:flex; align-items:center; gap:0.5rem;
+    }
+    .section-heading .dot {
+      width:8px; height:8px; border-radius:50%;
+      background: var(--sev3-fg); flex-shrink:0;
+      box-shadow: 0 0 8px var(--sev3-fg);
+    }
+    .alert-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--sev3-fg);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.6rem;
+      transition: border-color 0.2s;
+    }
+    .alert-card:hover { border-color: var(--sev3-fg); }
+    .alert-card[data-sev="4"] { border-left-color: var(--sev4-fg); }
+    .alert-card[data-sev="5"] {
+      border-left-color: var(--sev5-fg);
+      background: rgba(220,38,38,0.05);
+    }
+    .alert-meta {
+      display:flex; flex-wrap:wrap; gap:0.4rem;
+      margin-bottom: 0.5rem; align-items:center;
+    }
+    .alert-title {
+      font-size:0.9rem; font-weight:600; color:var(--text);
+      margin:0 0 0.2rem; overflow-wrap:break-word;
+    }
+    .alert-summary { font-size:0.82rem; color:var(--text-dim); margin:0.3rem 0 0; }
+    .alert-claims {
+      margin-top: 0.6rem; padding: 0.6rem 0.75rem;
+      background: rgba(224,85,85,0.06); border-radius:8px;
+    }
+    .alert-claims-label {
+      font-family:var(--font-mono); font-size:0.65rem;
+      text-transform:uppercase; letter-spacing:0.06em;
+      color:var(--sev3-fg); margin-bottom:0.3rem;
+    }
+    .alert-claims ul { margin:0; padding:0 0 0 1rem; list-style:disc; }
+    .alert-claims li { font-size:0.8rem; color:var(--text-dim); margin-bottom:0.15rem; }
+    .alert-footer {
+      display:flex; align-items:center; justify-content:space-between;
+      margin-top:0.75rem; flex-wrap:wrap; gap:0.5rem;
+    }
+    .confidence-bar-wrap { display:flex; align-items:center; gap:0.5rem; }
+    .confidence-label { font-family:var(--font-mono); font-size:0.65rem; color:var(--text-dim); }
+    .confidence-bar {
+      width:60px; height:4px; border-radius:2px;
+      background:var(--border-strong); overflow:hidden;
+    }
+    .confidence-fill {
+      height:100%; border-radius:2px;
+      background: var(--sev1-fg);
+      transition:width 0.6s ease;
+    }
+
+    /* ── Badge ── */
+    .badge {
+      display:inline-flex; align-items:center; gap:0.3rem;
+      padding:0.15rem 0.6rem; border-radius:100px;
+      font-size:0.7rem; font-family:var(--font-mono);
+      font-weight:500; white-space:nowrap;
+    }
+    .badge-sev0 { background:var(--sev0-bg); color:var(--sev0-fg); }
+    .badge-sev1 { background:var(--sev1-bg); color:var(--sev1-fg); }
+    .badge-sev2 { background:var(--sev2-bg); color:var(--sev2-fg); }
+    .badge-sev3 { background:var(--sev3-bg); color:var(--sev3-fg); }
+    .badge-sev4 { background:var(--sev4-bg); color:var(--sev4-fg); }
+    .badge-sev5 { background:var(--sev5-bg); color:var(--sev5-fg); }
+    .badge-yt   { background:var(--yt-dim); color:var(--yt); }
+    .badge-tt   { background:var(--tt-dim); color:var(--tt); }
+    .badge-type { background:rgba(91,138,240,0.1); color:#5b8af0; }
+
+    /* ── Table ── */
+    .table-section { margin-bottom: 3rem; }
+    .table-controls {
+      display:flex; flex-wrap:wrap; gap:0.6rem;
+      align-items:center; margin-bottom:0.75rem;
+    }
+    .table-heading {
+      font-family:var(--font-head); font-size:1.05rem;
+      font-weight:400; color:var(--text); margin:0 auto 0 0;
+    }
+    .search-input, .filter-select {
+      font-family:var(--font-body); font-size:0.82rem;
+      color:var(--text); background:var(--surface);
+      border:1px solid var(--border); border-radius:8px;
+      padding:0.4rem 0.7rem; outline:none;
+      transition:border-color 0.2s;
+    }
+    .search-input { width:220px; }
+    .search-input::placeholder { color:var(--text-muted); }
+    .search-input:focus, .filter-select:focus {
+      border-color:var(--border-strong);
+      box-shadow:0 0 0 2px rgba(224,85,85,0.15);
+    }
+    .filter-select option { background:var(--surface-raised); }
+    .table-wrap {
+      overflow-x:auto;
+      border:1px solid var(--border);
+      border-radius:12px;
+    }
+    table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+    thead {
+      position:sticky; top:0; z-index:2;
+      background:var(--surface-raised);
+    }
+    th {
+      padding:0.65rem 1rem; text-align:left;
+      font-family:var(--font-mono); font-size:0.65rem;
+      text-transform:uppercase; letter-spacing:0.07em;
+      color:var(--text-dim); font-weight:500;
+      border-bottom:1px solid var(--border-strong);
+      white-space:nowrap;
+    }
+    th.num { text-align:right; }
+    td {
+      padding:0.6rem 1rem;
+      border-bottom:1px solid var(--border);
+      vertical-align:middle;
+      overflow-wrap:break-word; word-break:break-word;
+    }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:var(--surface-hover); }
+    .row-hidden { display:none !important; }
+    .td-title { max-width:280px; }
+    .td-title-text { font-weight:500; color:var(--text); overflow-wrap:break-word; }
+    .td-channel { font-size:0.72rem; color:var(--text-dim); margin-top:0.1rem; }
+    .td-target  { font-size:0.68rem; color:var(--sev3-fg); margin-top:0.1rem; }
+    .td-sev-bar {
+      display:flex; align-items:center; gap:0.5rem; justify-content:center;
+    }
+    .sev-pip-row { display:flex; gap:3px; }
+    .sev-pip {
+      width:7px; height:7px; border-radius:2px;
+      background:var(--border-strong);
+    }
+    .sev-pip.active {
+      background:var(--sev3-fg);
+    }
+    .sev-pip.active.s0 { background:var(--sev0-fg); }
+    .sev-pip.active.s1 { background:var(--sev1-fg); }
+    .sev-pip.active.s2 { background:var(--sev2-fg); }
+    .sev-pip.active.s3 { background:var(--sev3-fg); }
+    .sev-pip.active.s4 { background:var(--sev4-fg); }
+    .sev-pip.active.s5 { background:var(--sev5-fg); }
+    .td-views {
+      text-align:right; font-family:var(--font-mono);
+      font-size:0.78rem; color:var(--text-dim);
+      white-space:nowrap;
+    }
+    .view-link {
+      font-family:var(--font-mono); font-size:0.7rem;
+      color:var(--accent); text-decoration:none;
+      padding:0.2rem 0.5rem; border-radius:6px;
+      border:1px solid rgba(224,85,85,0.25);
+      transition:background 0.15s, border-color 0.15s;
+      white-space:nowrap;
+    }
+    .view-link:hover {
+      background:rgba(224,85,85,0.1); border-color:rgba(224,85,85,0.5);
+    }
+    .no-results {
+      text-align:center; padding:2.5rem 1rem;
+      color:var(--text-muted); font-family:var(--font-mono);
+      font-size:0.78rem;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top:1px solid var(--border);
+      padding:1.5rem 0; margin-top:1rem;
+    }
+    .footer-inner {
+      display:flex; flex-wrap:wrap; gap:0.5rem;
+      align-items:center; justify-content:space-between;
+      font-size:0.72rem; color:var(--text-dim);
+      font-family:var(--font-mono);
+    }
+    .footer-inner a { color:var(--text-dim); text-decoration:underline; }
+    .footer-inner a:hover { color:var(--text); }
+    .footer-warn {
+      font-size:0.68rem; color:var(--text-muted);
+      max-width:600px; margin-top:0.4rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width:768px) {
+      .header-inner { flex-direction:column; }
+      .header-meta { text-align:left; }
+      .kpi-grid { grid-template-columns:1fr 1fr; }
+      .search-input { width:100%; }
+      th, td { padding:0.5rem 0.6rem; }
+    }
+    @media (max-width:480px) {
+      .kpi-grid { grid-template-columns:1fr; }
+    }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans">
+<body>
 
 <!-- HEADER -->
-<header class="bg-red-700 text-white py-6 px-4 shadow-lg">
-  <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight">Monitor de Desinformação</h1>
-      <p class="text-sm text-red-200 mt-1">Monitoramento automatizado de conteúdo anti-imprensa e antidemocrático · por Reinaldo Chaves</p>
-    </div>
-    <div class="text-right text-sm text-red-200">
-      <div>Última coleta: <strong class="text-white">{{ collected_at }}</strong></div>
-      <div>{{ total_videos }} vídeos analisados · {{ high_severity_count }} de alta severidade</div>
+<header>
+  <div class="container">
+    <div class="header-inner fade-in" style="--i:0">
+      <div class="header-brand">
+        <div class="header-icon">📡</div>
+        <div>
+          <h1>Monitor de Desinformação <span class="beta-badge">Beta</span></h1>
+          <div class="header-sub">Monitoramento automatizado · YouTube &amp; TikTok · Brasil</div>
+        </div>
+      </div>
+      <div class="header-meta">
+        <div>Última coleta: <strong>{{ collected_at }}</strong></div>
+        <div><strong>{{ total_videos }}</strong> vídeos analisados · <strong>{{ high_severity_count }}</strong> de alta severidade</div>
+        <div>por <a href="https://github.com/reichaves" style="color:var(--text-dim)">Reinaldo Chaves</a></div>
+      </div>
     </div>
   </div>
 </header>
 
-<!-- SUMMARY CARDS -->
-<section class="max-w-6xl mx-auto mt-6 px-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-  <div class="bg-white rounded-xl shadow p-4">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">Total</p>
-    <p class="text-3xl font-bold text-gray-800">{{ total_videos }}</p>
-    <p class="text-xs text-gray-400">vídeos coletados</p>
-  </div>
-  <div class="bg-white rounded-xl shadow p-4">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">Alta Severidade (≥3)</p>
-    <p class="text-3xl font-bold text-red-600">{{ high_severity_count }}</p>
-    <p class="text-xs text-gray-400">requerem atenção</p>
-  </div>
-  <div class="bg-white rounded-xl shadow p-4">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">YouTube</p>
-    <p class="text-3xl font-bold text-blue-600" id="yt-count">—</p>
-    <p class="text-xs text-gray-400">vídeos</p>
-  </div>
-  <div class="bg-white rounded-xl shadow p-4">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">TikTok</p>
-    <p class="text-3xl font-bold text-pink-600" id="tt-count">—</p>
-    <p class="text-xs text-gray-400">vídeos</p>
-  </div>
-</section>
+<main>
+<div class="container">
 
-<!-- CHARTS -->
-<section class="max-w-6xl mx-auto mt-6 px-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-  <div class="bg-white rounded-xl shadow p-4">
-    <h2 class="text-sm font-semibold text-gray-600 mb-3">Distribuição de Severidade</h2>
-    <canvas id="chartSeverity" height="200"></canvas>
+  <!-- KPI CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi-card fade-scale" style="--i:0">
+      <div class="kpi-label">Total</div>
+      <div class="kpi-value">{{ total_videos }}</div>
+      <div class="kpi-note">vídeos coletados</div>
+    </div>
+    <div class="kpi-card fade-scale" style="--i:1">
+      <div class="kpi-label" data-color="red">Alta Severidade (≥3)</div>
+      <div class="kpi-value red" id="kpi-high">{{ high_severity_count }}</div>
+      <div class="kpi-note">requerem atenção</div>
+    </div>
+    <div class="kpi-card fade-scale" style="--i:2">
+      <div class="kpi-label" data-color="yt">YouTube</div>
+      <div class="kpi-value yt" id="yt-count">—</div>
+      <div class="kpi-note">vídeos</div>
+    </div>
+    <div class="kpi-card fade-scale" style="--i:3">
+      <div class="kpi-label" data-color="tt">TikTok</div>
+      <div class="kpi-value tt" id="tt-count">—</div>
+      <div class="kpi-note">vídeos</div>
+    </div>
   </div>
-  <div class="bg-white rounded-xl shadow p-4">
-    <h2 class="text-sm font-semibold text-gray-600 mb-3">Tipo de Desinformação</h2>
-    <canvas id="chartType" height="200"></canvas>
-  </div>
-  <div class="bg-white rounded-xl shadow p-4">
-    <h2 class="text-sm font-semibold text-gray-600 mb-3">Plataforma</h2>
-    <canvas id="chartPlatform" height="200"></canvas>
-  </div>
-</section>
 
-<!-- HIGH SEVERITY ALERTS -->
-{% if high_severity %}
-<section class="max-w-6xl mx-auto mt-6 px-4">
-  <h2 class="text-lg font-bold text-red-700 mb-3">⚠️ Alertas de Alta Severidade</h2>
-  <div class="space-y-3">
+  <!-- CHARTS -->
+  <div class="charts-grid">
+    <div class="chart-card fade-in" style="--i:4">
+      <div class="chart-title">Distribuição de Severidade</div>
+      <figure>
+        <canvas id="chartSeverity" height="180" role="img" aria-label="Distribuição de severidade dos vídeos"></canvas>
+      </figure>
+    </div>
+    <div class="chart-card fade-in" style="--i:5">
+      <div class="chart-title">Tipo de Desinformação</div>
+      <figure>
+        <canvas id="chartType" height="180" role="img" aria-label="Tipos de desinformação detectados"></canvas>
+      </figure>
+    </div>
+    <div class="chart-card fade-in" style="--i:6">
+      <div class="chart-title">Plataforma</div>
+      <figure>
+        <canvas id="chartPlatform" height="180" role="img" aria-label="Distribuição por plataforma"></canvas>
+      </figure>
+    </div>
+  </div>
+
+  <!-- HIGH SEVERITY ALERTS -->
+  {% if high_severity %}
+  <section class="alerts-section fade-in" style="--i:7">
+    <h2 class="section-heading"><span class="dot"></span> Alertas de Alta Severidade</h2>
     {% for v in high_severity %}
-    <div class="bg-white border-l-4 border-red-500 rounded-xl shadow p-4">
-      <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
-        <div class="flex-1">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="badge severity-{{ v.severity }}">Severidade {{ v.severity }}</span>
-            <span class="badge bg-gray-100 text-gray-700">{{ v.platform }}</span>
-            <span class="badge bg-blue-100 text-blue-700">{{ v.disinformation_type }}</span>
-          </div>
-          <h3 class="font-semibold mt-2 text-gray-900">{{ v.title }}</h3>
-          <p class="text-xs text-gray-500 mt-1">Canal: {{ v.channel }}</p>
-          <p class="text-sm text-gray-600 mt-2">{{ v.summary_pt }}</p>
-          {% if v.claims %}
-          <div class="mt-2">
-            <p class="text-xs font-semibold text-red-600">Afirmações falsas/enganosas:</p>
-            <ul class="list-disc list-inside text-xs text-gray-700 mt-1">
-              {% for c in v.claims[:3] %}
-              <li>{{ c }}</li>
-              {% endfor %}
-            </ul>
-          </div>
-          {% endif %}
+    <div class="alert-card" data-sev="{{ v.severity }}">
+      <div class="alert-meta">
+        <span class="badge badge-sev{{ v.severity }}">Severidade {{ v.severity }}</span>
+        {% if v.platform == 'youtube' %}<span class="badge badge-yt">YouTube</span>
+        {% else %}<span class="badge badge-tt">TikTok</span>{% endif %}
+        {% if v.disinformation_type and v.disinformation_type != 'nenhum' %}
+        <span class="badge badge-type">{{ v.disinformation_type }}</span>
+        {% endif %}
+        {% if v.confidence %}<span class="badge" style="background:rgba(255,255,255,0.05);color:var(--text-dim)">conf. {{ v.confidence }}%</span>{% endif %}
+      </div>
+      <p class="alert-title">{{ v.title }}</p>
+      <p class="td-channel">{{ v.channel }}</p>
+      <p class="alert-summary">{{ v.summary_pt }}</p>
+      {% if v.claims %}
+      <div class="alert-claims">
+        <div class="alert-claims-label">Afirmações falsas/enganosas</div>
+        <ul>{% for c in v.claims[:3] %}<li>{{ c }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      <div class="alert-footer">
+        <div class="confidence-bar-wrap">
+          <span class="confidence-label">Confiança</span>
+          <div class="confidence-bar"><div class="confidence-fill" style="width:{{ v.confidence|default(50) }}%"></div></div>
+          <span class="confidence-label">{{ v.confidence|default(50) }}%</span>
         </div>
-        <div class="flex flex-col items-end gap-2 min-w-max">
-          <a href="{{ v.url }}" target="_blank" rel="noopener"
-             class="text-xs bg-red-600 text-white px-3 py-1 rounded-full hover:bg-red-700 transition">
-            Ver vídeo ↗
-          </a>
-          <span class="text-xs text-gray-400">{{ v.view_count | int | string }} views</span>
-        </div>
+        <a href="{{ v.url }}" target="_blank" rel="noopener" class="view-link">Ver vídeo ↗</a>
       </div>
     </div>
     {% endfor %}
-  </div>
-</section>
-{% endif %}
+  </section>
+  {% endif %}
 
-<!-- FULL TABLE -->
-<section class="max-w-6xl mx-auto mt-8 px-4 pb-16">
-  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
-    <h2 class="text-lg font-bold text-gray-800">Todos os Vídeos</h2>
-    <div class="flex gap-2 flex-wrap">
-      <input id="search-input" type="text" placeholder="Buscar por título, canal, tipo…"
-             class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-64 focus:ring-2 focus:ring-red-500 focus:outline-none" />
-      <select id="filter-platform" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+  <!-- VIDEO TABLE -->
+  <section class="table-section fade-in" style="--i:8">
+    <div class="table-controls">
+      <h2 class="table-heading">Todos os Vídeos</h2>
+      <input id="search-input" class="search-input" type="text"
+             placeholder="Buscar título, canal, tipo…" autocomplete="off" />
+      <select id="filter-platform" class="filter-select">
         <option value="">Todas as plataformas</option>
         <option value="youtube">YouTube</option>
         <option value="tiktok">TikTok</option>
       </select>
-      <select id="filter-severity" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+      <select id="filter-severity" class="filter-select">
         <option value="">Toda severidade</option>
         <option value="0">0 — Sem sinal</option>
         <option value="1">1 — Baixo</option>
@@ -137,144 +551,218 @@
         <option value="5">5 — Extremo</option>
       </select>
     </div>
-  </div>
 
-  <div class="bg-white rounded-xl shadow overflow-x-auto">
-    <table class="w-full text-sm" id="videos-table">
-      <thead class="bg-gray-100 text-gray-600 text-xs uppercase tracking-wide">
-        <tr>
-          <th class="px-4 py-3 text-left">Título / Canal</th>
-          <th class="px-4 py-3 text-left">Plataforma</th>
-          <th class="px-4 py-3 text-left">Tipo</th>
-          <th class="px-4 py-3 text-center">Severidade</th>
-          <th class="px-4 py-3 text-right">Views</th>
-          <th class="px-4 py-3 text-center">Ação</th>
-        </tr>
-      </thead>
-      <tbody id="table-body">
-        {% for v in videos %}
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="{{ v.platform }}"
-            data-severity="{{ v.severity }}"
-            data-searchable="{{ v.title }} {{ v.channel }} {{ v.disinformation_type }} {{ v.summary_pt }}">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="{{ v.title }}">{{ v.title }}</p>
-            <p class="text-xs text-gray-400">{{ v.channel }}</p>
-            {% if v.target and v.target != 'nenhum' %}
-            <p class="text-xs text-red-500">Alvo: {{ v.target }}</p>
-            {% endif %}
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge {% if v.platform == 'youtube' %}bg-blue-100 text-blue-700{% else %}bg-pink-100 text-pink-700{% endif %}">
-              {{ v.platform }}
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600">{{ v.disinformation_type }}</td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-{{ v.severity }}">{{ v.severity }}</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            {{ "{:,}".format(v.view_count | int).replace(",", ".") }}
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="{{ v.url }}" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <div id="no-results" class="hidden text-center py-10 text-gray-400 text-sm">
-      Nenhum resultado encontrado.
+    <div class="table-wrap">
+      <table id="videos-table">
+        <thead>
+          <tr>
+            <th scope="col">Título / Canal</th>
+            <th scope="col">Plataforma</th>
+            <th scope="col">Tipo</th>
+            <th scope="col" style="text-align:center">Severidade</th>
+            <th scope="col" style="text-align:center">Conf.</th>
+            <th scope="col" class="num">Views</th>
+            <th scope="col" style="text-align:center">Link</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          {% for v in videos %}
+          <tr data-platform="{{ v.platform }}"
+              data-severity="{{ v.severity }}"
+              data-searchable="{{ v.title }} {{ v.channel }} {{ v.disinformation_type }} {{ v.summary_pt }}">
+            <td class="td-title">
+              <div class="td-title-text">{{ v.title }}</div>
+              <div class="td-channel">{{ v.channel }}</div>
+              {% if v.target and v.target != 'nenhum' %}
+              <div class="td-target">Alvo: {{ v.target }}</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if v.platform == 'youtube' %}
+              <span class="badge badge-yt">YouTube</span>
+              {% else %}
+              <span class="badge badge-tt">TikTok</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if v.disinformation_type and v.disinformation_type != 'nenhum' %}
+              <span class="badge badge-type">{{ v.disinformation_type }}</span>
+              {% else %}
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  {% for i in range(5) %}
+                  <div class="sev-pip {% if i < v.severity %}active s{{ v.severity }}{% endif %}"></div>
+                  {% endfor %}
+                </div>
+                <span class="badge badge-sev{{ v.severity }}">{{ v.severity }}</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              {% if v.confidence %}
+              <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-dim)">{{ v.confidence }}%</span>
+              {% else %}
+              <span style="color:var(--text-muted)">—</span>
+              {% endif %}
+            </td>
+            <td class="td-views">
+              {{ "{:,}".format(v.view_count | int).replace(",", ".") }}
+            </td>
+            <td style="text-align:center">
+              <a href="{{ v.url }}" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div id="no-results" class="no-results" style="display:none">
+        Nenhum resultado para os filtros selecionados.
+      </div>
+    </div>
+  </section>
+
+</div><!-- /container -->
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        Projeto de <a href="https://github.com/reichaves">Reinaldo Chaves</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/reichaves/desinformacao-monitor">GitHub</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/reichaves/desinformacao-monitor/actions">Actions</a>
+      </div>
+      <div>Coleta diária · 19h BRT · Gemini AI</div>
+    </div>
+    <div class="footer-warn">
+      Dados coletados automaticamente por IA. A severidade é estimativa do modelo e
+      <strong>requer verificação humana</strong> antes de qualquer publicação.
+      Conteúdo público analisado para fins de pesquisa jornalística.
     </div>
   </div>
-  <p class="text-xs text-gray-400 mt-4">
-    Dados coletados automaticamente por IA para fins de monitoramento jornalístico.
-    A severidade é uma estimativa do modelo e requer verificação humana antes de publicação.
-    Projeto de Reinaldo Chaves · <a href="https://github.com/reichaves/desinformacao-monitor" class="underline">GitHub</a>
-  </p>
-</section>
+</footer>
 
 <!-- SCRIPTS -->
 <script>
-const allVideos = {{ all_videos_json }};
-const severityCounts = {{ severity_counts_json }};
-const typeCounts = {{ type_counts_json }};
-const platformCounts = {{ platform_counts_json }};
+// ── Data injected by Python (| safe prevents HTML escaping) ──
+const severityCounts  = {{ severity_counts_json | safe }};
+const typeCounts      = {{ type_counts_json | safe }};
+const platformCounts  = {{ platform_counts_json | safe }};
 
-// Fill platform cards
-document.getElementById('yt-count').textContent = platformCounts['youtube'] || 0;
-document.getElementById('tt-count').textContent = platformCounts['tiktok'] || 0;
+// ── KPI: platform counts ──
+document.getElementById('yt-count').textContent = platformCounts['youtube'] ?? 0;
+document.getElementById('tt-count').textContent = platformCounts['tiktok'] ?? 0;
 
-// Chart: Severity
+// ── Chart theme ──
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const textColor   = isDark ? '#7c829a' : '#5a5f75';
+const gridColor   = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+const fontMono    = "'JetBrains Mono', monospace";
+
+Chart.defaults.font.family = fontMono;
+Chart.defaults.font.size   = 11;
+Chart.defaults.color       = textColor;
+
+const SEV_COLORS = ['#34d399','#fbbf24','#fb923c','#f87171','#ef4444','#dc2626'];
+const SEV_LABELS = ['0 – Nenhum','1 – Baixo','2 – Moderado','3 – Alto','4 – Muito alto','5 – Extremo'];
+const TYPE_COLORS = ['#5b8af0','#e06080','#f0a05b','#3dc9a8','#a78bfa','#60a5fa','#34d399'];
+
+// ── Chart: Severity ──
 new Chart(document.getElementById('chartSeverity'), {
   type: 'bar',
   data: {
-    labels: ['0 – Nenhum','1 – Baixo','2 – Moderado','3 – Alto','4 – Muito alto','5 – Extremo'],
+    labels: SEV_LABELS,
     datasets: [{
       label: 'Vídeos',
       data: [0,1,2,3,4,5].map(i => severityCounts[String(i)] || 0),
-      backgroundColor: ['#d1fae5','#fef3c7','#fed7aa','#fecaca','#f87171','#dc2626'],
-      borderRadius: 4,
+      backgroundColor: SEV_COLORS.map(c => c + '33'),
+      borderColor: SEV_COLORS,
+      borderWidth: 1.5,
+      borderRadius: 5,
     }]
   },
-  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } },
+      y: { beginAtZero: true, ticks: { stepSize: 1, color: textColor }, grid: { color: gridColor } }
+    }
+  }
 });
 
-// Chart: Type
+// ── Chart: Type ──
 const typeLabels = Object.keys(typeCounts);
-const typeData = typeLabels.map(k => typeCounts[k]);
-const typeColors = ['#3b82f6','#ef4444','#f59e0b','#10b981','#6366f1','#ec4899'];
-new Chart(document.getElementById('chartType'), {
-  type: 'doughnut',
-  data: {
-    labels: typeLabels,
-    datasets: [{ data: typeData, backgroundColor: typeColors.slice(0, typeLabels.length), borderWidth: 1 }]
-  },
-  options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
-});
-
-// Chart: Platform
-const platLabels = Object.keys(platformCounts);
-const platData = platLabels.map(k => platformCounts[k]);
-new Chart(document.getElementById('chartPlatform'), {
-  type: 'pie',
-  data: {
-    labels: platLabels,
-    datasets: [{ data: platData, backgroundColor: ['#3b82f6','#ec4899','#10b981'], borderWidth: 1 }]
-  },
-  options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
-});
-
-// Filtering
-const searchInput = document.getElementById('search-input');
-const filterPlatform = document.getElementById('filter-platform');
-const filterSeverity = document.getElementById('filter-severity');
-const tableBody = document.getElementById('table-body');
-const noResults = document.getElementById('no-results');
-
-function applyFilters() {
-  const q = searchInput.value.toLowerCase();
-  const plat = filterPlatform.value;
-  const sev = filterSeverity.value;
-  let visible = 0;
-
-  tableBody.querySelectorAll('tr').forEach(row => {
-    const searchable = row.dataset.searchable.toLowerCase();
-    const rowPlat = row.dataset.platform;
-    const rowSev = row.dataset.severity;
-    const matchQ = !q || searchable.includes(q);
-    const matchP = !plat || rowPlat === plat;
-    const matchS = !sev || rowSev === sev;
-    if (matchQ && matchP && matchS) {
-      row.classList.remove('row-hidden');
-      visible++;
-    } else {
-      row.classList.add('row-hidden');
+const typeData   = typeLabels.map(k => typeCounts[k]);
+if (typeLabels.length > 0) {
+  new Chart(document.getElementById('chartType'), {
+    type: 'doughnut',
+    data: {
+      labels: typeLabels,
+      datasets: [{
+        data: typeData,
+        backgroundColor: TYPE_COLORS.slice(0, typeLabels.length).map(c => c + '33'),
+        borderColor: TYPE_COLORS.slice(0, typeLabels.length),
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { color: textColor, font: { size: 10 }, padding: 8, boxWidth: 12 } } }
     }
   });
+}
 
-  noResults.classList.toggle('hidden', visible > 0);
+// ── Chart: Platform ──
+const platLabels = Object.keys(platformCounts);
+const platData   = platLabels.map(k => platformCounts[k]);
+const platColors = platLabels.map(l => l === 'youtube' ? '#ff3c3c' : '#e040fb');
+if (platLabels.length > 0) {
+  new Chart(document.getElementById('chartPlatform'), {
+    type: 'pie',
+    data: {
+      labels: platLabels,
+      datasets: [{
+        data: platData,
+        backgroundColor: platColors.map(c => c + '33'),
+        borderColor: platColors,
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { color: textColor, font: { size: 10 }, padding: 8, boxWidth: 12 } } }
+    }
+  });
+}
+
+// ── Filtering ──
+const searchInput    = document.getElementById('search-input');
+const filterPlatform = document.getElementById('filter-platform');
+const filterSeverity = document.getElementById('filter-severity');
+const tableBody      = document.getElementById('table-body');
+const noResults      = document.getElementById('no-results');
+
+function applyFilters() {
+  const q    = searchInput.value.toLowerCase().trim();
+  const plat = filterPlatform.value;
+  const sev  = filterSeverity.value;
+  let visible = 0;
+  tableBody.querySelectorAll('tr').forEach(row => {
+    const haystack = (row.dataset.searchable || '').toLowerCase();
+    const ok = (!q || haystack.includes(q))
+            && (!plat || row.dataset.platform === plat)
+            && (!sev  || row.dataset.severity === sev);
+    row.classList.toggle('row-hidden', !ok);
+    if (ok) visible++;
+  });
+  noResults.style.display = visible === 0 ? 'block' : 'none';
 }
 
 searchInput.addEventListener('input', applyFilters);

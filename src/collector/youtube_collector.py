@@ -124,7 +124,8 @@ class YouTubeCollector(BaseCollector):
 
         for query in queries[:15]:
             try:
-                # Request 15 candidates per query — many will be filtered by date
+                # ytsearchdate: sorts by upload date (newest first) — crucial for recency
+                # Request 15 candidates per query; many may still be filtered post-collection
                 cmd = [
                     "yt-dlp",
                     "--flat-playlist",
@@ -135,7 +136,7 @@ class YouTubeCollector(BaseCollector):
                     "--dateafter", dateafter_str,
                     "--user-agent", _USER_AGENT,
                     *self._cookies_args(),
-                    f"ytsearch15:{query}",
+                    f"ytsearchdate15:{query}",
                 ]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
                 if result.returncode != 0:
@@ -158,7 +159,13 @@ class YouTubeCollector(BaseCollector):
                         duration = int(info.get("duration") or 0)
                         view_count = int(info.get("view_count") or 0)
                         like_count = int(info.get("like_count") or 0)
-                        published_at = _ts_to_dt(info.get("timestamp"))
+                        # Try Unix timestamp first, then YYYYMMDD string (flat-playlist mode
+                        # may return upload_date but not timestamp)
+                        published_at = (
+                            _ts_to_dt(info.get("timestamp"))
+                            or _date_to_dt(info.get("upload_date"))
+                            or _date_to_dt(info.get("release_date"))
+                        )
 
                         # Hard date filter — drop videos older than hours_back.
                         # Videos with no timestamp are kept (timestamp unavailable
@@ -348,6 +355,14 @@ def _ts_to_dt(timestamp) -> Optional[datetime]:
     """Convert a Unix timestamp to a UTC datetime."""
     try:
         return datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
+    except Exception:
+        return None
+
+
+def _date_to_dt(datestr) -> Optional[datetime]:
+    """Convert a YYYYMMDD string (as returned by yt-dlp upload_date) to a UTC datetime."""
+    try:
+        return datetime.strptime(str(datestr).strip(), "%Y%m%d").replace(tzinfo=timezone.utc)
     except Exception:
         return None
 

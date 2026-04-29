@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Optional
 
 from jinja2 import Environment, FileSystemLoader
+from markupsafe import Markup
 
 logger = logging.getLogger(__name__)
 
@@ -81,16 +82,18 @@ class HtmlGenerator:
                 high_severity.append(v)
 
         template = self.env.get_template(_TEMPLATE_NAME)
+        # Markup() marks strings as safe so Jinja2 autoescape does not
+        # HTML-encode quotes inside JSON — without this all Chart.js data breaks.
         html = template.render(
             collected_at=collected_at,
             total_videos=total,
             high_severity_count=len(high_severity),
             videos=videos,
             high_severity=high_severity[:10],
-            severity_counts_json=json.dumps(severity_counts),
-            type_counts_json=json.dumps(type_counts),
-            platform_counts_json=json.dumps(platform_counts),
-            all_videos_json=json.dumps(videos, ensure_ascii=False),
+            severity_counts_json=Markup(json.dumps(severity_counts)),
+            type_counts_json=Markup(json.dumps(type_counts)),
+            platform_counts_json=Markup(json.dumps(platform_counts)),
+            all_videos_json=Markup(json.dumps(videos, ensure_ascii=False)),
         )
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
