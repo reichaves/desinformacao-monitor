@@ -4,91 +4,510 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Monitor de Desinformação — Reinaldo Chaves</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
-    .severity-0 { background-color: #d1fae5; color: #065f46; }
-    .severity-1 { background-color: #fef3c7; color: #92400e; }
-    .severity-2 { background-color: #fed7aa; color: #9a3412; }
-    .severity-3 { background-color: #fecaca; color: #7f1d1d; }
-    .severity-4 { background-color: #f87171; color: #fff; }
-    .severity-5 { background-color: #dc2626; color: #fff; }
-    .badge { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:.75rem; font-weight:600; }
-    .row-hidden { display: none !important; }
+    /* ── CSS Custom Properties ── */
+    :root {
+      --bg: #0c0e14;
+      --surface: #13161f;
+      --surface-raised: #1a1e2a;
+      --surface-hover: #1f2435;
+      --border: rgba(255,255,255,0.07);
+      --border-strong: rgba(255,255,255,0.14);
+      --text: #e2e5f0;
+      --text-dim: #7c829a;
+      --text-muted: #454a60;
+      --font-head: 'Instrument Serif', Georgia, serif;
+      --font-body: 'DM Sans', sans-serif;
+      --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+      /* severity palette */
+      --sev0-bg: rgba(52,211,153,0.10); --sev0-fg: #34d399;
+      --sev1-bg: rgba(251,191,36,0.12);  --sev1-fg: #fbbf24;
+      --sev2-bg: rgba(251,146,60,0.14);  --sev2-fg: #fb923c;
+      --sev3-bg: rgba(248,113,113,0.15); --sev3-fg: #f87171;
+      --sev4-bg: rgba(239,68,68,0.20);   --sev4-fg: #ef4444;
+      --sev5-bg: rgba(220,38,38,0.30);   --sev5-fg: #dc2626;
+      /* platforms */
+      --yt: #ff3c3c; --yt-dim: rgba(255,60,60,0.12);
+      --tt: #e040fb; --tt-dim: rgba(224,64,251,0.12);
+      /* accent */
+      --accent: #e05555; --accent-dim: rgba(224,85,85,0.10);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f2f3f7;
+        --surface: #ffffff;
+        --surface-raised: #eef0f5;
+        --surface-hover: #e8eaf1;
+        --border: rgba(0,0,0,0.07);
+        --border-strong: rgba(0,0,0,0.14);
+        --text: #141620;
+        --text-dim: #5a5f75;
+        --text-muted: #9ca3b8;
+        --sev0-bg: rgba(16,185,129,0.10); --sev0-fg: #059669;
+        --sev1-bg: rgba(217,119,6,0.10);  --sev1-fg: #d97706;
+        --sev2-bg: rgba(234,88,12,0.10);  --sev2-fg: #ea580c;
+        --sev3-bg: rgba(220,38,38,0.10);  --sev3-fg: #dc2626;
+        --sev4-bg: rgba(185,28,28,0.15);  --sev4-fg: #b91c1c;
+        --sev5-bg: rgba(127,29,29,0.15);  --sev5-fg: #7f1d1d;
+        --yt-dim: rgba(220,38,38,0.08);
+        --tt-dim: rgba(168,85,247,0.08);
+        --accent-dim: rgba(220,38,38,0.08);
+      }
+    }
+
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; min-width: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px),
+        radial-gradient(at 80% 10%, rgba(224,85,85,0.06) 0, transparent 50%);
+      background-size: 28px 28px, 100% 100%;
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(14px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    @keyframes fadeScale {
+      from { opacity:0; transform:scale(0.92); }
+      to   { opacity:1; transform:scale(1); }
+    }
+    .fade-in {
+      opacity:0;
+      animation: fadeUp 0.45s cubic-bezier(.22,.68,0,1.2) forwards;
+      animation-delay: calc(var(--i,0) * 55ms);
+    }
+    .fade-scale {
+      opacity:0;
+      animation: fadeScale 0.4s ease forwards;
+      animation-delay: calc(var(--i,0) * 70ms);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .fade-in, .fade-scale { opacity:1; animation:none; }
+    }
+
+    /* ── Layout ── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 1.25rem; }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1.5rem 0 1.25rem;
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(12,14,20,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    @media (prefers-color-scheme: light) {
+      header { background: rgba(242,243,247,0.92); }
+    }
+    .header-inner {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    }
+    .header-brand { display:flex; align-items:center; gap:0.75rem; }
+    .header-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: var(--accent-dim);
+      border: 1px solid rgba(224,85,85,0.3);
+      display:grid; place-items:center; font-size:1.1rem; flex-shrink:0;
+    }
+    h1 {
+      font-family: var(--font-head);
+      font-size: 1.35rem; font-weight: 400; margin: 0;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .header-sub {
+      font-size: 0.72rem; font-family: var(--font-mono);
+      color: var(--text-dim); text-transform: uppercase;
+      letter-spacing: 0.06em; margin-top: 0.1rem;
+    }
+    .header-meta {
+      text-align: right; font-family: var(--font-mono);
+      font-size: 0.72rem; color: var(--text-dim);
+      line-height: 1.8;
+    }
+    .header-meta strong { color: var(--text); font-weight: 500; }
+    .beta-badge {
+      display:inline-flex; align-items:center; gap:0.3rem;
+      background: rgba(251,146,60,0.12); color:#fb923c;
+      border: 1px solid rgba(251,146,60,0.25);
+      font-family: var(--font-mono); font-size: 0.65rem;
+      padding: 0.15rem 0.55rem; border-radius: 100px;
+      text-transform:uppercase; letter-spacing:0.06em;
+      margin-left: 0.5rem; vertical-align: middle;
+    }
+
+    /* ── KPI Cards ── */
+    .kpi-grid {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.75rem;
+      margin: 1.5rem 0;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.1rem 1.25rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .kpi-card:hover {
+      border-color: var(--border-strong);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .kpi-label {
+      font-family: var(--font-mono); font-size: 0.68rem;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-dim); margin-bottom: 0.4rem;
+      display:flex; align-items:center; gap:0.4rem;
+    }
+    .kpi-label::before {
+      content:''; width:6px; height:6px; border-radius:50%;
+      background: var(--text-muted);
+    }
+    .kpi-label[data-color="red"]::before   { background: var(--sev3-fg); }
+    .kpi-label[data-color="yt"]::before    { background: var(--yt); }
+    .kpi-label[data-color="tt"]::before    { background: var(--tt); }
+    .kpi-value {
+      font-family: var(--font-head); font-size: 2.4rem;
+      font-weight: 400; line-height: 1; color: var(--text);
+    }
+    .kpi-value.red  { color: var(--sev3-fg); }
+    .kpi-value.yt   { color: var(--yt); }
+    .kpi-value.tt   { color: var(--tt); }
+    .kpi-note { font-size:0.72rem; color:var(--text-dim); margin-top:0.25rem; }
+
+    /* ── Charts Section ── */
+    .charts-grid {
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width:900px) {
+      .charts-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width:600px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem 1.25rem;
+    }
+    .chart-title {
+      font-family: var(--font-mono); font-size: 0.68rem;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--text-dim); margin-bottom: 0.75rem;
+    }
+
+    /* ── Alert Cards ── */
+    .alerts-section { margin-bottom: 1.5rem; }
+    .section-heading {
+      font-family: var(--font-head);
+      font-size: 1.05rem; font-weight: 400;
+      color: var(--text); margin: 0 0 0.75rem;
+      display:flex; align-items:center; gap:0.5rem;
+    }
+    .section-heading .dot {
+      width:8px; height:8px; border-radius:50%;
+      background: var(--sev3-fg); flex-shrink:0;
+      box-shadow: 0 0 8px var(--sev3-fg);
+    }
+    .alert-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--sev3-fg);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.6rem;
+      transition: border-color 0.2s;
+    }
+    .alert-card:hover { border-color: var(--sev3-fg); }
+    .alert-card[data-sev="4"] { border-left-color: var(--sev4-fg); }
+    .alert-card[data-sev="5"] {
+      border-left-color: var(--sev5-fg);
+      background: rgba(220,38,38,0.05);
+    }
+    .alert-meta {
+      display:flex; flex-wrap:wrap; gap:0.4rem;
+      margin-bottom: 0.5rem; align-items:center;
+    }
+    .alert-title {
+      font-size:0.9rem; font-weight:600; color:var(--text);
+      margin:0 0 0.2rem; overflow-wrap:break-word;
+    }
+    .alert-summary { font-size:0.82rem; color:var(--text-dim); margin:0.3rem 0 0; }
+    .alert-claims {
+      margin-top: 0.6rem; padding: 0.6rem 0.75rem;
+      background: rgba(224,85,85,0.06); border-radius:8px;
+    }
+    .alert-claims-label {
+      font-family:var(--font-mono); font-size:0.65rem;
+      text-transform:uppercase; letter-spacing:0.06em;
+      color:var(--sev3-fg); margin-bottom:0.3rem;
+    }
+    .alert-claims ul { margin:0; padding:0 0 0 1rem; list-style:disc; }
+    .alert-claims li { font-size:0.8rem; color:var(--text-dim); margin-bottom:0.15rem; }
+    .alert-footer {
+      display:flex; align-items:center; justify-content:space-between;
+      margin-top:0.75rem; flex-wrap:wrap; gap:0.5rem;
+    }
+    .confidence-bar-wrap { display:flex; align-items:center; gap:0.5rem; }
+    .confidence-label { font-family:var(--font-mono); font-size:0.65rem; color:var(--text-dim); }
+    .confidence-bar {
+      width:60px; height:4px; border-radius:2px;
+      background:var(--border-strong); overflow:hidden;
+    }
+    .confidence-fill {
+      height:100%; border-radius:2px;
+      background: var(--sev1-fg);
+      transition:width 0.6s ease;
+    }
+
+    /* ── Badge ── */
+    .badge {
+      display:inline-flex; align-items:center; gap:0.3rem;
+      padding:0.15rem 0.6rem; border-radius:100px;
+      font-size:0.7rem; font-family:var(--font-mono);
+      font-weight:500; white-space:nowrap;
+    }
+    .badge-sev0 { background:var(--sev0-bg); color:var(--sev0-fg); }
+    .badge-sev1 { background:var(--sev1-bg); color:var(--sev1-fg); }
+    .badge-sev2 { background:var(--sev2-bg); color:var(--sev2-fg); }
+    .badge-sev3 { background:var(--sev3-bg); color:var(--sev3-fg); }
+    .badge-sev4 { background:var(--sev4-bg); color:var(--sev4-fg); }
+    .badge-sev5 { background:var(--sev5-bg); color:var(--sev5-fg); }
+    .badge-yt   { background:var(--yt-dim); color:var(--yt); }
+    .badge-tt   { background:var(--tt-dim); color:var(--tt); }
+    .badge-type { background:rgba(91,138,240,0.1); color:#5b8af0; }
+
+    /* ── Table ── */
+    .table-section { margin-bottom: 3rem; }
+    .table-controls {
+      display:flex; flex-wrap:wrap; gap:0.6rem;
+      align-items:center; margin-bottom:0.75rem;
+    }
+    .table-heading {
+      font-family:var(--font-head); font-size:1.05rem;
+      font-weight:400; color:var(--text); margin:0 auto 0 0;
+    }
+    .search-input, .filter-select {
+      font-family:var(--font-body); font-size:0.82rem;
+      color:var(--text); background:var(--surface);
+      border:1px solid var(--border); border-radius:8px;
+      padding:0.4rem 0.7rem; outline:none;
+      transition:border-color 0.2s;
+    }
+    .search-input { width:220px; }
+    .search-input::placeholder { color:var(--text-muted); }
+    .search-input:focus, .filter-select:focus {
+      border-color:var(--border-strong);
+      box-shadow:0 0 0 2px rgba(224,85,85,0.15);
+    }
+    .filter-select option { background:var(--surface-raised); }
+    .table-wrap {
+      overflow-x:auto;
+      border:1px solid var(--border);
+      border-radius:12px;
+    }
+    table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+    thead {
+      position:sticky; top:0; z-index:2;
+      background:var(--surface-raised);
+    }
+    th {
+      padding:0.65rem 1rem; text-align:left;
+      font-family:var(--font-mono); font-size:0.65rem;
+      text-transform:uppercase; letter-spacing:0.07em;
+      color:var(--text-dim); font-weight:500;
+      border-bottom:1px solid var(--border-strong);
+      white-space:nowrap;
+    }
+    th.num { text-align:right; }
+    td {
+      padding:0.6rem 1rem;
+      border-bottom:1px solid var(--border);
+      vertical-align:middle;
+      overflow-wrap:break-word; word-break:break-word;
+    }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:var(--surface-hover); }
+    .row-hidden { display:none !important; }
+    .td-title { max-width:280px; }
+    .td-title-text { font-weight:500; color:var(--text); overflow-wrap:break-word; }
+    .td-channel { font-size:0.72rem; color:var(--text-dim); margin-top:0.1rem; }
+    .td-target  { font-size:0.68rem; color:var(--sev3-fg); margin-top:0.1rem; }
+    .td-sev-bar {
+      display:flex; align-items:center; gap:0.5rem; justify-content:center;
+    }
+    .sev-pip-row { display:flex; gap:3px; }
+    .sev-pip {
+      width:7px; height:7px; border-radius:2px;
+      background:var(--border-strong);
+    }
+    .sev-pip.active {
+      background:var(--sev3-fg);
+    }
+    .sev-pip.active.s0 { background:var(--sev0-fg); }
+    .sev-pip.active.s1 { background:var(--sev1-fg); }
+    .sev-pip.active.s2 { background:var(--sev2-fg); }
+    .sev-pip.active.s3 { background:var(--sev3-fg); }
+    .sev-pip.active.s4 { background:var(--sev4-fg); }
+    .sev-pip.active.s5 { background:var(--sev5-fg); }
+    .td-views {
+      text-align:right; font-family:var(--font-mono);
+      font-size:0.78rem; color:var(--text-dim);
+      white-space:nowrap;
+    }
+    .view-link {
+      font-family:var(--font-mono); font-size:0.7rem;
+      color:var(--accent); text-decoration:none;
+      padding:0.2rem 0.5rem; border-radius:6px;
+      border:1px solid rgba(224,85,85,0.25);
+      transition:background 0.15s, border-color 0.15s;
+      white-space:nowrap;
+    }
+    .view-link:hover {
+      background:rgba(224,85,85,0.1); border-color:rgba(224,85,85,0.5);
+    }
+    .no-results {
+      text-align:center; padding:2.5rem 1rem;
+      color:var(--text-muted); font-family:var(--font-mono);
+      font-size:0.78rem;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top:1px solid var(--border);
+      padding:1.5rem 0; margin-top:1rem;
+    }
+    .footer-inner {
+      display:flex; flex-wrap:wrap; gap:0.5rem;
+      align-items:center; justify-content:space-between;
+      font-size:0.72rem; color:var(--text-dim);
+      font-family:var(--font-mono);
+    }
+    .footer-inner a { color:var(--text-dim); text-decoration:underline; }
+    .footer-inner a:hover { color:var(--text); }
+    .footer-warn {
+      font-size:0.68rem; color:var(--text-muted);
+      max-width:600px; margin-top:0.4rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width:768px) {
+      .header-inner { flex-direction:column; }
+      .header-meta { text-align:left; }
+      .kpi-grid { grid-template-columns:1fr 1fr; }
+      .search-input { width:100%; }
+      th, td { padding:0.5rem 0.6rem; }
+    }
+    @media (max-width:480px) {
+      .kpi-grid { grid-template-columns:1fr; }
+    }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans">
+<body>
 
 <!-- HEADER -->
-<header class="bg-red-700 text-white py-6 px-4 shadow-lg">
-  <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-    <div>
-      <h1 class="text-2xl font-bold tracking-tight">Monitor de Desinformação</h1>
-      <p class="text-sm text-red-200 mt-1">Monitoramento automatizado de conteúdo anti-imprensa e antidemocrático · por Reinaldo Chaves</p>
-    </div>
-    <div class="text-right text-sm text-red-200">
-      <div>Última coleta: <strong class="text-white">2026-04-29T00:14:39.498295+00:00Z</strong></div>
-      <div>20 vídeos analisados · 0 de alta severidade</div>
+<header>
+  <div class="container">
+    <div class="header-inner fade-in" style="--i:0">
+      <div class="header-brand">
+        <div class="header-icon">📡</div>
+        <div>
+          <h1>Monitor de Desinformação <span class="beta-badge">Beta</span></h1>
+          <div class="header-sub">Monitoramento automatizado · YouTube &amp; TikTok · Brasil</div>
+        </div>
+      </div>
+      <div class="header-meta">
+        <div>Última coleta: <strong>2026-04-29T01:05:14.713059+00:00Z</strong></div>
+        <div><strong>10</strong> vídeos analisados · <strong>0</strong> de alta severidade</div>
+        <div>por <a href="https://github.com/reichaves" style="color:var(--text-dim)">Reinaldo Chaves</a></div>
+      </div>
     </div>
   </div>
 </header>
 
-<!-- SUMMARY CARDS -->
-<section class="max-w-6xl mx-auto mt-6 px-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-  <div class="bg-white rounded-xl shadow p-4">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">Total</p>
-    <p class="text-3xl font-bold text-gray-800">20</p>
-    <p class="text-xs text-gray-400">vídeos coletados</p>
-  </div>
-  <div class="bg-white rounded-xl shadow p-4">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">Alta Severidade (≥3)</p>
-    <p class="text-3xl font-bold text-red-600">0</p>
-    <p class="text-xs text-gray-400">requerem atenção</p>
-  </div>
-  <div class="bg-white rounded-xl shadow p-4">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">YouTube</p>
-    <p class="text-3xl font-bold text-blue-600" id="yt-count">—</p>
-    <p class="text-xs text-gray-400">vídeos</p>
-  </div>
-  <div class="bg-white rounded-xl shadow p-4">
-    <p class="text-xs text-gray-500 uppercase tracking-wide">TikTok</p>
-    <p class="text-3xl font-bold text-pink-600" id="tt-count">—</p>
-    <p class="text-xs text-gray-400">vídeos</p>
-  </div>
-</section>
+<main>
+<div class="container">
 
-<!-- CHARTS -->
-<section class="max-w-6xl mx-auto mt-6 px-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-  <div class="bg-white rounded-xl shadow p-4">
-    <h2 class="text-sm font-semibold text-gray-600 mb-3">Distribuição de Severidade</h2>
-    <canvas id="chartSeverity" height="200"></canvas>
+  <!-- KPI CARDS -->
+  <div class="kpi-grid">
+    <div class="kpi-card fade-scale" style="--i:0">
+      <div class="kpi-label">Total</div>
+      <div class="kpi-value">10</div>
+      <div class="kpi-note">vídeos coletados</div>
+    </div>
+    <div class="kpi-card fade-scale" style="--i:1">
+      <div class="kpi-label" data-color="red">Alta Severidade (≥3)</div>
+      <div class="kpi-value red" id="kpi-high">0</div>
+      <div class="kpi-note">requerem atenção</div>
+    </div>
+    <div class="kpi-card fade-scale" style="--i:2">
+      <div class="kpi-label" data-color="yt">YouTube</div>
+      <div class="kpi-value yt" id="yt-count">—</div>
+      <div class="kpi-note">vídeos</div>
+    </div>
+    <div class="kpi-card fade-scale" style="--i:3">
+      <div class="kpi-label" data-color="tt">TikTok</div>
+      <div class="kpi-value tt" id="tt-count">—</div>
+      <div class="kpi-note">vídeos</div>
+    </div>
   </div>
-  <div class="bg-white rounded-xl shadow p-4">
-    <h2 class="text-sm font-semibold text-gray-600 mb-3">Tipo de Desinformação</h2>
-    <canvas id="chartType" height="200"></canvas>
+
+  <!-- CHARTS -->
+  <div class="charts-grid">
+    <div class="chart-card fade-in" style="--i:4">
+      <div class="chart-title">Distribuição de Severidade</div>
+      <figure>
+        <canvas id="chartSeverity" height="180" role="img" aria-label="Distribuição de severidade dos vídeos"></canvas>
+      </figure>
+    </div>
+    <div class="chart-card fade-in" style="--i:5">
+      <div class="chart-title">Tipo de Desinformação</div>
+      <figure>
+        <canvas id="chartType" height="180" role="img" aria-label="Tipos de desinformação detectados"></canvas>
+      </figure>
+    </div>
+    <div class="chart-card fade-in" style="--i:6">
+      <div class="chart-title">Plataforma</div>
+      <figure>
+        <canvas id="chartPlatform" height="180" role="img" aria-label="Distribuição por plataforma"></canvas>
+      </figure>
+    </div>
   </div>
-  <div class="bg-white rounded-xl shadow p-4">
-    <h2 class="text-sm font-semibold text-gray-600 mb-3">Plataforma</h2>
-    <canvas id="chartPlatform" height="200"></canvas>
-  </div>
-</section>
 
-<!-- HIGH SEVERITY ALERTS -->
+  <!-- HIGH SEVERITY ALERTS -->
+  
 
-
-<!-- FULL TABLE -->
-<section class="max-w-6xl mx-auto mt-8 px-4 pb-16">
-  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
-    <h2 class="text-lg font-bold text-gray-800">Todos os Vídeos</h2>
-    <div class="flex gap-2 flex-wrap">
-      <input id="search-input" type="text" placeholder="Buscar por título, canal, tipo…"
-             class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-64 focus:ring-2 focus:ring-red-500 focus:outline-none" />
-      <select id="filter-platform" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+  <!-- VIDEO TABLE -->
+  <section class="table-section fade-in" style="--i:8">
+    <div class="table-controls">
+      <h2 class="table-heading">Todos os Vídeos</h2>
+      <input id="search-input" class="search-input" type="text"
+             placeholder="Buscar título, canal, tipo…" autocomplete="off" />
+      <select id="filter-platform" class="filter-select">
         <option value="">Todas as plataformas</option>
         <option value="youtube">YouTube</option>
         <option value="tiktok">TikTok</option>
       </select>
-      <select id="filter-severity" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none">
+      <select id="filter-severity" class="filter-select">
         <option value="">Toda severidade</option>
         <option value="0">0 — Sem sinal</option>
         <option value="1">1 — Baixo</option>
@@ -98,655 +517,659 @@
         <option value="5">5 — Extremo</option>
       </select>
     </div>
-  </div>
 
-  <div class="bg-white rounded-xl shadow overflow-x-auto">
-    <table class="w-full text-sm" id="videos-table">
-      <thead class="bg-gray-100 text-gray-600 text-xs uppercase tracking-wide">
-        <tr>
-          <th class="px-4 py-3 text-left">Título / Canal</th>
-          <th class="px-4 py-3 text-left">Plataforma</th>
-          <th class="px-4 py-3 text-left">Tipo</th>
-          <th class="px-4 py-3 text-center">Severidade</th>
-          <th class="px-4 py-3 text-right">Views</th>
-          <th class="px-4 py-3 text-center">Ação</th>
-        </tr>
-      </thead>
-      <tbody id="table-body">
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="youtube"
-            data-severity="0"
-            data-searchable="Maria Clara e JP tomando vacina Maria Clara &amp; JP  Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="Maria Clara e JP tomando vacina">Maria Clara e JP tomando vacina</p>
-            <p class="text-xs text-gray-400">Maria Clara &amp; JP</p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-blue-100 text-blue-700">
-              youtube
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            18.148.226
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.youtube.com/watch?v=ak83DA0Zc2A" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="youtube"
-            data-severity="0"
-            data-searchable="Nova Ordem Mundial - O Fim Chegou · FILME COMPLETO EM PORTUGUÊS Swen Family - Português  Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="Nova Ordem Mundial - O Fim Chegou · FILME COMPLETO EM PORTUGUÊS">Nova Ordem Mundial - O Fim Chegou · FILME COMPLETO EM PORTUGUÊS</p>
-            <p class="text-xs text-gray-400">Swen Family - Português</p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-blue-100 text-blue-700">
-              youtube
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            2.867.804
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.youtube.com/watch?v=O1Zw0SSmA5I" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="youtube"
-            data-severity="0"
-            data-searchable="POR QUE PESSOAS QUE TOMARAM VÁRIAS DOSES DA VACINA ESTÃO MORRENDO? Olá, Ciência!  Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="POR QUE PESSOAS QUE TOMARAM VÁRIAS DOSES DA VACINA ESTÃO MORRENDO?">POR QUE PESSOAS QUE TOMARAM VÁRIAS DOSES DA VACINA ESTÃO MORRENDO?</p>
-            <p class="text-xs text-gray-400">Olá, Ciência!</p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-blue-100 text-blue-700">
-              youtube
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            2.687.569
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.youtube.com/watch?v=I8Wrp3s_lGw" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="youtube"
-            data-severity="0"
-            data-searchable="URNA ELETRÔNICA / Dá pra Hackear? Canal Nostalgia  Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="URNA ELETRÔNICA / Dá pra Hackear?">URNA ELETRÔNICA / Dá pra Hackear?</p>
-            <p class="text-xs text-gray-400">Canal Nostalgia</p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-blue-100 text-blue-700">
-              youtube
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            1.785.639
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.youtube.com/watch?v=l4BmQ-hylTk" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="youtube"
-            data-severity="0"
-            data-searchable="O Brasil perante a nova ordem mundial Olavo de Carvalho  Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="O Brasil perante a nova ordem mundial">O Brasil perante a nova ordem mundial</p>
-            <p class="text-xs text-gray-400">Olavo de Carvalho</p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-blue-100 text-blue-700">
-              youtube
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            1.738.099
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.youtube.com/watch?v=dlQG02mwTD0" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="youtube"
-            data-severity="0"
-            data-searchable="Moraes could be cited in the US for illegal censorship: Supreme Court enters a collision course |... Gazeta do Povo and Gazeta do Povo - Extras  Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="Moraes could be cited in the US for illegal censorship: Supreme Court enters a collision course |...">Moraes could be cited in the US for illegal censorship: Supreme Court enters a collision course |...</p>
-            <p class="text-xs text-gray-400">Gazeta do Povo and Gazeta do Povo - Extras</p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-blue-100 text-blue-700">
-              youtube
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            751.668
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.youtube.com/watch?v=-yDQOntQlsc" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="youtube"
-            data-severity="0"
-            data-searchable="Bolsonaro criticizes the press again: &#34;For the media, I am the virus&#34; UOL  Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="Bolsonaro criticizes the press again: &#34;For the media, I am the virus&#34;">Bolsonaro criticizes the press again: &#34;For the media, I am the virus&#34;</p>
-            <p class="text-xs text-gray-400">UOL</p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-blue-100 text-blue-700">
-              youtube
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            547.703
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.youtube.com/watch?v=ppw6L5OfLiQ" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="youtube"
-            data-severity="0"
-            data-searchable="Qual PS5 COMPRAR ATUALMENTE ? Digital ou com LEITOR DE DISCO - Visão Consumer Super Consumer  Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="Qual PS5 COMPRAR ATUALMENTE ? Digital ou com LEITOR DE DISCO - Visão Consumer">Qual PS5 COMPRAR ATUALMENTE ? Digital ou com LEITOR DE DISCO - Visão Consumer</p>
-            <p class="text-xs text-gray-400">Super Consumer</p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-blue-100 text-blue-700">
-              youtube
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            479.031
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.youtube.com/watch?v=gZhtTX7RPQw" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="youtube"
-            data-severity="0"
-            data-searchable="New World Order - Brazil School Brasil Escola Oficial  Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="New World Order - Brazil School">New World Order - Brazil School</p>
-            <p class="text-xs text-gray-400">Brasil Escola Oficial</p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-blue-100 text-blue-700">
-              youtube
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            460.901
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.youtube.com/watch?v=0Kcrms9olwo" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="youtube"
-            data-severity="0"
-            data-searchable="A Nova Ordem Mundial - Geobrasil {Prof. Rodrigo Rodrigues} Geobrasil  Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="A Nova Ordem Mundial - Geobrasil {Prof. Rodrigo Rodrigues}">A Nova Ordem Mundial - Geobrasil {Prof. Rodrigo Rodrigues}</p>
-            <p class="text-xs text-gray-400">Geobrasil</p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-blue-100 text-blue-700">
-              youtube
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            439.693
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.youtube.com/watch?v=oSElG3zNtFw" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="tiktok"
-            data-severity="0"
-            data-searchable="#votoimpresso | TikTok   Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="#votoimpresso | TikTok">#votoimpresso | TikTok</p>
-            <p class="text-xs text-gray-400"></p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-pink-100 text-pink-700">
-              tiktok
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            0
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.tiktok.com/@brasillivre09/video/7633933124828974357" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="tiktok"
-            data-severity="0"
-            data-searchable="#votoimpresso | TikTok   Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="#votoimpresso | TikTok">#votoimpresso | TikTok</p>
-            <p class="text-xs text-gray-400"></p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-pink-100 text-pink-700">
-              tiktok
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            0
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.tiktok.com/@ototiktok46/video/7633779976659160340" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="tiktok"
-            data-severity="0"
-            data-searchable="#votoimpresso | TikTok   Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="#votoimpresso | TikTok">#votoimpresso | TikTok</p>
-            <p class="text-xs text-gray-400"></p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-pink-100 text-pink-700">
-              tiktok
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            0
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.tiktok.com/@marletelorenzoni2/video/7633607951202241799" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="tiktok"
-            data-severity="0"
-            data-searchable="#foralula | TikTok   Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="#foralula | TikTok">#foralula | TikTok</p>
-            <p class="text-xs text-gray-400"></p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-pink-100 text-pink-700">
-              tiktok
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            0
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.tiktok.com/@sergiomoro_/video/7633958014931832082" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="tiktok"
-            data-severity="0"
-            data-searchable="#foralula | TikTok   Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="#foralula | TikTok">#foralula | TikTok</p>
-            <p class="text-xs text-gray-400"></p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-pink-100 text-pink-700">
-              tiktok
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            0
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.tiktok.com/@clip.house1990/video/7633932750516423956" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="tiktok"
-            data-severity="0"
-            data-searchable="#foralula | TikTok   Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="#foralula | TikTok">#foralula | TikTok</p>
-            <p class="text-xs text-gray-400"></p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-pink-100 text-pink-700">
-              tiktok
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            0
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.tiktok.com/@dep.alceumoreira/video/7633829778537155860" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="tiktok"
-            data-severity="0"
-            data-searchable="#foralula | TikTok   Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="#foralula | TikTok">#foralula | TikTok</p>
-            <p class="text-xs text-gray-400"></p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-pink-100 text-pink-700">
-              tiktok
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            0
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.tiktok.com/@fabianodepaula903/video/7633942650860915975" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="tiktok"
-            data-severity="0"
-            data-searchable="#foralula | TikTok   Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="#foralula | TikTok">#foralula | TikTok</p>
-            <p class="text-xs text-gray-400"></p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-pink-100 text-pink-700">
-              tiktok
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            0
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.tiktok.com/@prefrzema/video/7633830125351472402" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="tiktok"
-            data-severity="0"
-            data-searchable="#foralula | TikTok   Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="#foralula | TikTok">#foralula | TikTok</p>
-            <p class="text-xs text-gray-400"></p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-pink-100 text-pink-700">
-              tiktok
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            0
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.tiktok.com/@leaodedireita26/video/7633904981250182418" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-        <tr class="border-t border-gray-100 hover:bg-gray-50 transition"
-            data-platform="tiktok"
-            data-severity="0"
-            data-searchable="#foralula | TikTok   Análise automática indisponível.">
-          <td class="px-4 py-3 max-w-xs">
-            <p class="font-medium text-gray-900 truncate" title="#foralula | TikTok">#foralula | TikTok</p>
-            <p class="text-xs text-gray-400"></p>
-            
-          </td>
-          <td class="px-4 py-3">
-            <span class="badge bg-pink-100 text-pink-700">
-              tiktok
-            </span>
-          </td>
-          <td class="px-4 py-3 text-gray-600"></td>
-          <td class="px-4 py-3 text-center">
-            <span class="badge severity-0">0</span>
-          </td>
-          <td class="px-4 py-3 text-right text-gray-500">
-            0
-          </td>
-          <td class="px-4 py-3 text-center">
-            <a href="https://www.tiktok.com/@cris_penareia/video/7633951816308247828" target="_blank" rel="noopener"
-               class="text-xs text-red-600 hover:underline font-medium">Ver ↗</a>
-          </td>
-        </tr>
-        
-      </tbody>
-    </table>
-    <div id="no-results" class="hidden text-center py-10 text-gray-400 text-sm">
-      Nenhum resultado encontrado.
+    <div class="table-wrap">
+      <table id="videos-table">
+        <thead>
+          <tr>
+            <th scope="col">Título / Canal</th>
+            <th scope="col">Plataforma</th>
+            <th scope="col">Tipo</th>
+            <th scope="col" style="text-align:center">Severidade</th>
+            <th scope="col" style="text-align:center">Conf.</th>
+            <th scope="col" class="num">Views</th>
+            <th scope="col" style="text-align:center">Link</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          
+          <tr data-platform="tiktok"
+              data-severity="0"
+              data-searchable="#votoimpresso | TikTok   Análise automática indisponível.">
+            <td class="td-title">
+              <div class="td-title-text">#votoimpresso | TikTok</div>
+              <div class="td-channel"></div>
+              
+            </td>
+            <td>
+              
+              <span class="badge badge-tt">TikTok</span>
+              
+            </td>
+            <td>
+              
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                </div>
+                <span class="badge badge-sev0">0</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              
+              <span style="color:var(--text-muted)">—</span>
+              
+            </td>
+            <td class="td-views">
+              0
+            </td>
+            <td style="text-align:center">
+              <a href="https://www.tiktok.com/@cassiusu033/video/7633963432680738056" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          
+          <tr data-platform="tiktok"
+              data-severity="0"
+              data-searchable="#votoimpresso | TikTok   Análise automática indisponível.">
+            <td class="td-title">
+              <div class="td-title-text">#votoimpresso | TikTok</div>
+              <div class="td-channel"></div>
+              
+            </td>
+            <td>
+              
+              <span class="badge badge-tt">TikTok</span>
+              
+            </td>
+            <td>
+              
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                </div>
+                <span class="badge badge-sev0">0</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              
+              <span style="color:var(--text-muted)">—</span>
+              
+            </td>
+            <td class="td-views">
+              0
+            </td>
+            <td style="text-align:center">
+              <a href="https://www.tiktok.com/@marletelorenzoni2/video/7633607951202241799" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          
+          <tr data-platform="tiktok"
+              data-severity="0"
+              data-searchable="#votoimpresso | TikTok   Análise automática indisponível.">
+            <td class="td-title">
+              <div class="td-title-text">#votoimpresso | TikTok</div>
+              <div class="td-channel"></div>
+              
+            </td>
+            <td>
+              
+              <span class="badge badge-tt">TikTok</span>
+              
+            </td>
+            <td>
+              
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                </div>
+                <span class="badge badge-sev0">0</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              
+              <span style="color:var(--text-muted)">—</span>
+              
+            </td>
+            <td class="td-views">
+              0
+            </td>
+            <td style="text-align:center">
+              <a href="https://www.tiktok.com/@rosauraolive/video/7633609461231373576" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          
+          <tr data-platform="tiktok"
+              data-severity="0"
+              data-searchable="#foralula | TikTok   Análise automática indisponível.">
+            <td class="td-title">
+              <div class="td-title-text">#foralula | TikTok</div>
+              <div class="td-channel"></div>
+              
+            </td>
+            <td>
+              
+              <span class="badge badge-tt">TikTok</span>
+              
+            </td>
+            <td>
+              
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                </div>
+                <span class="badge badge-sev0">0</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              
+              <span style="color:var(--text-muted)">—</span>
+              
+            </td>
+            <td class="td-views">
+              0
+            </td>
+            <td style="text-align:center">
+              <a href="https://www.tiktok.com/@sergiomoro_/video/7633958014931832082" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          
+          <tr data-platform="tiktok"
+              data-severity="0"
+              data-searchable="#foralula | TikTok   Análise automática indisponível.">
+            <td class="td-title">
+              <div class="td-title-text">#foralula | TikTok</div>
+              <div class="td-channel"></div>
+              
+            </td>
+            <td>
+              
+              <span class="badge badge-tt">TikTok</span>
+              
+            </td>
+            <td>
+              
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                </div>
+                <span class="badge badge-sev0">0</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              
+              <span style="color:var(--text-muted)">—</span>
+              
+            </td>
+            <td class="td-views">
+              0
+            </td>
+            <td style="text-align:center">
+              <a href="https://www.tiktok.com/@peres3407/video/7633836397098454292" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          
+          <tr data-platform="tiktok"
+              data-severity="0"
+              data-searchable="#foralula | TikTok   Análise automática indisponível.">
+            <td class="td-title">
+              <div class="td-title-text">#foralula | TikTok</div>
+              <div class="td-channel"></div>
+              
+            </td>
+            <td>
+              
+              <span class="badge badge-tt">TikTok</span>
+              
+            </td>
+            <td>
+              
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                </div>
+                <span class="badge badge-sev0">0</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              
+              <span style="color:var(--text-muted)">—</span>
+              
+            </td>
+            <td class="td-views">
+              0
+            </td>
+            <td style="text-align:center">
+              <a href="https://www.tiktok.com/@fabianodepaula903/video/7633942650860915975" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          
+          <tr data-platform="tiktok"
+              data-severity="0"
+              data-searchable="#foralula | TikTok   Análise automática indisponível.">
+            <td class="td-title">
+              <div class="td-title-text">#foralula | TikTok</div>
+              <div class="td-channel"></div>
+              
+            </td>
+            <td>
+              
+              <span class="badge badge-tt">TikTok</span>
+              
+            </td>
+            <td>
+              
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                </div>
+                <span class="badge badge-sev0">0</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              
+              <span style="color:var(--text-muted)">—</span>
+              
+            </td>
+            <td class="td-views">
+              0
+            </td>
+            <td style="text-align:center">
+              <a href="https://www.tiktok.com/@tuane_tutu8/video/7633955639349300487" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          
+          <tr data-platform="tiktok"
+              data-severity="0"
+              data-searchable="#foralula | TikTok   Análise automática indisponível.">
+            <td class="td-title">
+              <div class="td-title-text">#foralula | TikTok</div>
+              <div class="td-channel"></div>
+              
+            </td>
+            <td>
+              
+              <span class="badge badge-tt">TikTok</span>
+              
+            </td>
+            <td>
+              
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                </div>
+                <span class="badge badge-sev0">0</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              
+              <span style="color:var(--text-muted)">—</span>
+              
+            </td>
+            <td class="td-views">
+              0
+            </td>
+            <td style="text-align:center">
+              <a href="https://www.tiktok.com/@prefrzema/video/7633912503445015815" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          
+          <tr data-platform="tiktok"
+              data-severity="0"
+              data-searchable="#foralula | TikTok   Análise automática indisponível.">
+            <td class="td-title">
+              <div class="td-title-text">#foralula | TikTok</div>
+              <div class="td-channel"></div>
+              
+            </td>
+            <td>
+              
+              <span class="badge badge-tt">TikTok</span>
+              
+            </td>
+            <td>
+              
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                </div>
+                <span class="badge badge-sev0">0</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              
+              <span style="color:var(--text-muted)">—</span>
+              
+            </td>
+            <td class="td-views">
+              0
+            </td>
+            <td style="text-align:center">
+              <a href="https://www.tiktok.com/@leaodedireita26/video/7633904981250182418" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          
+          <tr data-platform="tiktok"
+              data-severity="0"
+              data-searchable="#foralula | TikTok   Análise automática indisponível.">
+            <td class="td-title">
+              <div class="td-title-text">#foralula | TikTok</div>
+              <div class="td-channel"></div>
+              
+            </td>
+            <td>
+              
+              <span class="badge badge-tt">TikTok</span>
+              
+            </td>
+            <td>
+              
+              <span style="color:var(--text-muted);font-size:0.75rem">—</span>
+              
+            </td>
+            <td>
+              <div class="td-sev-bar">
+                <div class="sev-pip-row">
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                  <div class="sev-pip "></div>
+                  
+                </div>
+                <span class="badge badge-sev0">0</span>
+              </div>
+            </td>
+            <td style="text-align:center">
+              
+              <span style="color:var(--text-muted)">—</span>
+              
+            </td>
+            <td class="td-views">
+              0
+            </td>
+            <td style="text-align:center">
+              <a href="https://www.tiktok.com/@vamosbrasill22/video/7633973866876128533" target="_blank" rel="noopener" class="view-link">Ver ↗</a>
+            </td>
+          </tr>
+          
+        </tbody>
+      </table>
+      <div id="no-results" class="no-results" style="display:none">
+        Nenhum resultado para os filtros selecionados.
+      </div>
+    </div>
+  </section>
+
+</div><!-- /container -->
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div>
+        Projeto de <a href="https://github.com/reichaves">Reinaldo Chaves</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/reichaves/desinformacao-monitor">GitHub</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/reichaves/desinformacao-monitor/actions">Actions</a>
+      </div>
+      <div>Coleta diária · 19h BRT · Gemini AI</div>
+    </div>
+    <div class="footer-warn">
+      Dados coletados automaticamente por IA. A severidade é estimativa do modelo e
+      <strong>requer verificação humana</strong> antes de qualquer publicação.
+      Conteúdo público analisado para fins de pesquisa jornalística.
     </div>
   </div>
-  <p class="text-xs text-gray-400 mt-4">
-    Dados coletados automaticamente por IA para fins de monitoramento jornalístico.
-    A severidade é uma estimativa do modelo e requer verificação humana antes de publicação.
-    Projeto de Reinaldo Chaves · <a href="https://github.com/reichaves/desinformacao-monitor" class="underline">GitHub</a>
-  </p>
-</section>
+</footer>
 
 <!-- SCRIPTS -->
 <script>
-const allVideos = [{&#34;video_id&#34;: &#34;ak83DA0Zc2A&#34;, &#34;platform&#34;: &#34;youtube&#34;, &#34;title&#34;: &#34;Maria Clara e JP tomando vacina&#34;, &#34;url&#34;: &#34;https://www.youtube.com/watch?v=ak83DA0Zc2A&#34;, &#34;channel&#34;: &#34;Maria Clara &amp; JP&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;#VacinaMatando&#34;], &#34;transcript_excerpt&#34;: &#34;&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 18148226, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 200, &#34;published_at&#34;: null}, {&#34;video_id&#34;: &#34;O1Zw0SSmA5I&#34;, &#34;platform&#34;: &#34;youtube&#34;, &#34;title&#34;: &#34;Nova Ordem Mundial - O Fim Chegou · FILME COMPLETO EM PORTUGUÊS&#34;, &#34;url&#34;: &#34;https://www.youtube.com/watch?v=O1Zw0SSmA5I&#34;, &#34;channel&#34;: &#34;Swen Family - Português&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;nova ordem mundial brasil&#34;], &#34;transcript_excerpt&#34;: &#34;&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 2867804, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 5141, &#34;published_at&#34;: null}, {&#34;video_id&#34;: &#34;I8Wrp3s_lGw&#34;, &#34;platform&#34;: &#34;youtube&#34;, &#34;title&#34;: &#34;POR QUE PESSOAS QUE TOMARAM VÁRIAS DOSES DA VACINA ESTÃO MORRENDO?&#34;, &#34;url&#34;: &#34;https://www.youtube.com/watch?v=I8Wrp3s_lGw&#34;, &#34;channel&#34;: &#34;Olá, Ciência!&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;#VacinaMatando&#34;], &#34;transcript_excerpt&#34;: &#34;&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 2687569, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 587, &#34;published_at&#34;: null}, {&#34;video_id&#34;: &#34;l4BmQ-hylTk&#34;, &#34;platform&#34;: &#34;youtube&#34;, &#34;title&#34;: &#34;URNA ELETRÔNICA / Dá pra Hackear?&#34;, &#34;url&#34;: &#34;https://www.youtube.com/watch?v=l4BmQ-hylTk&#34;, &#34;channel&#34;: &#34;Canal Nostalgia&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;fraude urnas brasil&#34;], &#34;transcript_excerpt&#34;: &#34;&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 1785639, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 750, &#34;published_at&#34;: null}, {&#34;video_id&#34;: &#34;dlQG02mwTD0&#34;, &#34;platform&#34;: &#34;youtube&#34;, &#34;title&#34;: &#34;O Brasil perante a nova ordem mundial&#34;, &#34;url&#34;: &#34;https://www.youtube.com/watch?v=dlQG02mwTD0&#34;, &#34;channel&#34;: &#34;Olavo de Carvalho&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;nova ordem mundial brasil&#34;], &#34;transcript_excerpt&#34;: &#34;&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 1738099, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 5485, &#34;published_at&#34;: null}, {&#34;video_id&#34;: &#34;-yDQOntQlsc&#34;, &#34;platform&#34;: &#34;youtube&#34;, &#34;title&#34;: &#34;Moraes could be cited in the US for illegal censorship: Supreme Court enters a collision course |...&#34;, &#34;url&#34;: &#34;https://www.youtube.com/watch?v=-yDQOntQlsc&#34;, &#34;channel&#34;: &#34;Gazeta do Povo and Gazeta do Povo - Extras&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;STF censura&#34;], &#34;transcript_excerpt&#34;: &#34;&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 751668, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 903, &#34;published_at&#34;: null}, {&#34;video_id&#34;: &#34;ppw6L5OfLiQ&#34;, &#34;platform&#34;: &#34;youtube&#34;, &#34;title&#34;: &#34;Bolsonaro criticizes the press again: \&#34;For the media, I am the virus\&#34;&#34;, &#34;url&#34;: &#34;https://www.youtube.com/watch?v=ppw6L5OfLiQ&#34;, &#34;channel&#34;: &#34;UOL&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;mídia comprada brasil&#34;], &#34;transcript_excerpt&#34;: &#34;&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 547703, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 89, &#34;published_at&#34;: null}, {&#34;video_id&#34;: &#34;gZhtTX7RPQw&#34;, &#34;platform&#34;: &#34;youtube&#34;, &#34;title&#34;: &#34;Qual PS5 COMPRAR ATUALMENTE ? Digital ou com LEITOR DE DISCO - Visão Consumer&#34;, &#34;url&#34;: &#34;https://www.youtube.com/watch?v=gZhtTX7RPQw&#34;, &#34;channel&#34;: &#34;Super Consumer&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;mídia comprada brasil&#34;], &#34;transcript_excerpt&#34;: &#34;&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 479031, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 350, &#34;published_at&#34;: null}, {&#34;video_id&#34;: &#34;0Kcrms9olwo&#34;, &#34;platform&#34;: &#34;youtube&#34;, &#34;title&#34;: &#34;New World Order - Brazil School&#34;, &#34;url&#34;: &#34;https://www.youtube.com/watch?v=0Kcrms9olwo&#34;, &#34;channel&#34;: &#34;Brasil Escola Oficial&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;nova ordem mundial brasil&#34;], &#34;transcript_excerpt&#34;: &#34;&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 460901, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 486, &#34;published_at&#34;: null}, {&#34;video_id&#34;: &#34;oSElG3zNtFw&#34;, &#34;platform&#34;: &#34;youtube&#34;, &#34;title&#34;: &#34;A Nova Ordem Mundial - Geobrasil {Prof. Rodrigo Rodrigues}&#34;, &#34;url&#34;: &#34;https://www.youtube.com/watch?v=oSElG3zNtFw&#34;, &#34;channel&#34;: &#34;Geobrasil&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;nova ordem mundial brasil&#34;], &#34;transcript_excerpt&#34;: &#34;&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 439693, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 919, &#34;published_at&#34;: null}, {&#34;video_id&#34;: &#34;7633933124828974357&#34;, &#34;platform&#34;: &#34;tiktok&#34;, &#34;title&#34;: &#34;#votoimpresso | TikTok&#34;, &#34;url&#34;: &#34;https://www.tiktok.com/@brasillivre09/video/7633933124828974357&#34;, &#34;channel&#34;: &#34;&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;votoimpresso&#34;], &#34;transcript_excerpt&#34;: &#34;67 curtidas,Vídeo do TikTok de Brasil_Livr3 (@brasillivre09).som original - Brasil_Livr3.&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 0, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 0, &#34;published_at&#34;: &#34;2026-04-28T21:59:23+00:00&#34;}, {&#34;video_id&#34;: &#34;7633779976659160340&#34;, &#34;platform&#34;: &#34;tiktok&#34;, &#34;title&#34;: &#34;#votoimpresso | TikTok&#34;, &#34;url&#34;: &#34;https://www.tiktok.com/@ototiktok46/video/7633779976659160340&#34;, &#34;channel&#34;: &#34;&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;votoimpresso&#34;], &#34;transcript_excerpt&#34;: &#34;Vídeo do TikTok de ototiktok (@ototiktok46).som original - ototiktok.&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 0, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 0, &#34;published_at&#34;: &#34;2026-04-28T12:05:05+00:00&#34;}, {&#34;video_id&#34;: &#34;7633607951202241799&#34;, &#34;platform&#34;: &#34;tiktok&#34;, &#34;title&#34;: &#34;#votoimpresso | TikTok&#34;, &#34;url&#34;: &#34;https://www.tiktok.com/@marletelorenzoni2/video/7633607951202241799&#34;, &#34;channel&#34;: &#34;&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;votoimpresso&#34;], &#34;transcript_excerpt&#34;: &#34;Vídeo do TikTok de Marlete Lorenzoni (@marletelorenzoni2).som original - Marlete Lorenzoni.&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 0, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 0, &#34;published_at&#34;: &#34;2026-04-28T00:57:32+00:00&#34;}, {&#34;video_id&#34;: &#34;7633958014931832082&#34;, &#34;platform&#34;: &#34;tiktok&#34;, &#34;title&#34;: &#34;#foralula | TikTok&#34;, &#34;url&#34;: &#34;https://www.tiktok.com/@sergiomoro_/video/7633958014931832082&#34;, &#34;channel&#34;: &#34;&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;foralula&#34;], &#34;transcript_excerpt&#34;: &#34;271 curtidas,Vídeo do TikTok de Sergio Moro (@sergiomoro_): \&#34;O episódio da faixa “LADRÃO” e a reação da PF confirmam o clima de censura no país. #foralula\&#34;.som original - Sergio Moro.&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 0, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 0, &#34;published_at&#34;: &#34;2026-04-28T23:35:58+00:00&#34;}, {&#34;video_id&#34;: &#34;7633932750516423956&#34;, &#34;platform&#34;: &#34;tiktok&#34;, &#34;title&#34;: &#34;#foralula | TikTok&#34;, &#34;url&#34;: &#34;https://www.tiktok.com/@clip.house1990/video/7633932750516423956&#34;, &#34;channel&#34;: &#34;&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;foralula&#34;], &#34;transcript_excerpt&#34;: &#34;54 curtidas,Vídeo do TikTok de Clip House (@clip.house1990): \&#34;Fora lula! #forapt #foralula #bolsonaro2026 #bolsonaro #fyp\&#34;.som original - Clip House.&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 0, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 0, &#34;published_at&#34;: &#34;2026-04-28T21:57:55+00:00&#34;}, {&#34;video_id&#34;: &#34;7633829778537155860&#34;, &#34;platform&#34;: &#34;tiktok&#34;, &#34;title&#34;: &#34;#foralula | TikTok&#34;, &#34;url&#34;: &#34;https://www.tiktok.com/@dep.alceumoreira/video/7633829778537155860&#34;, &#34;channel&#34;: &#34;&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;foralula&#34;], &#34;transcript_excerpt&#34;: &#34;1292 curtidas,38 comentários.Vídeo do TikTok de Alceu Moreira (@dep.alceumoreira): \&#34;O Brasil não suporta mais tanta impunidade e injustiça descaradas! #direitaconservadora #bancomaster #forapt #foralula #stfvergonhanacional\&#34;.som original - Alceu Moreira.&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 0, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 0, &#34;published_at&#34;: &#34;2026-04-28T15:18:20+00:00&#34;}, {&#34;video_id&#34;: &#34;7633942650860915975&#34;, &#34;platform&#34;: &#34;tiktok&#34;, &#34;title&#34;: &#34;#foralula | TikTok&#34;, &#34;url&#34;: &#34;https://www.tiktok.com/@fabianodepaula903/video/7633942650860915975&#34;, &#34;channel&#34;: &#34;&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;foralula&#34;], &#34;transcript_excerpt&#34;: &#34;82 curtidas,Vídeo do TikTok de fabianodepaula903 (@fabianodepaula903): \&#34;#foraesquerda #foralula🤮🤮 #forapt #foraesquerdamaldita #foralulacomunista\&#34;.#foralulasom original - fabianodepaula903.&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 0, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 0, &#34;published_at&#34;: &#34;2026-04-28T22:36:21+00:00&#34;}, {&#34;video_id&#34;: &#34;7633830125351472402&#34;, &#34;platform&#34;: &#34;tiktok&#34;, &#34;title&#34;: &#34;#foralula | TikTok&#34;, &#34;url&#34;: &#34;https://www.tiktok.com/@prefrzema/video/7633830125351472402&#34;, &#34;channel&#34;: &#34;&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;foralula&#34;], &#34;transcript_excerpt&#34;: &#34;94 curtidas,Vídeo do TikTok de prefrzema (@prefrzema): \&#34;#forapt #ptnuncamais #foralula #romeuzema #zemapresidente\&#34;.som original - prefrzema.&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 0, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 0, &#34;published_at&#34;: &#34;2026-04-28T15:19:41+00:00&#34;}, {&#34;video_id&#34;: &#34;7633904981250182418&#34;, &#34;platform&#34;: &#34;tiktok&#34;, &#34;title&#34;: &#34;#foralula | TikTok&#34;, &#34;url&#34;: &#34;https://www.tiktok.com/@leaodedireita26/video/7633904981250182418&#34;, &#34;channel&#34;: &#34;&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;foralula&#34;], &#34;transcript_excerpt&#34;: &#34;33 curtidas,Vídeo do TikTok de Leão de direita 🇧🇷 (@leaodedireita26): \&#34;#foralula #brasil🇧🇷 #nordeste #goiania #forapt\&#34;.Siga o canal som original - Leão de direita 🇧🇷.&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 0, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 0, &#34;published_at&#34;: &#34;2026-04-28T20:10:10+00:00&#34;}, {&#34;video_id&#34;: &#34;7633951816308247828&#34;, &#34;platform&#34;: &#34;tiktok&#34;, &#34;title&#34;: &#34;#foralula | TikTok&#34;, &#34;url&#34;: &#34;https://www.tiktok.com/@cris_penareia/video/7633951816308247828&#34;, &#34;channel&#34;: &#34;&#34;, &#34;summary_pt&#34;: &#34;Análise automática indisponível.&#34;, &#34;disinformation_type&#34;: &#34;&#34;, &#34;severity&#34;: 0, &#34;severity_justification&#34;: &#34;&#34;, &#34;target&#34;: &#34;&#34;, &#34;claims&#34;: [], &#34;counter_narrative&#34;: &#34;&#34;, &#34;keywords_found&#34;: [&#34;foralula&#34;], &#34;transcript_excerpt&#34;: &#34;Vídeo do TikTok de Cris 🇧🇷 👣 (@cris_penareia): \&#34;FINALMENTE CONCORDAMOS!! 👏👏👏👏 #forapt #foralula #paravoce #Brasil #paravoceforyou\&#34;.E não é que ele está certo? som original - Cris 🇧🇷 👣.&#34;, &#34;visual_signals&#34;: [], &#34;ocr_texts&#34;: [], &#34;view_count&#34;: 0, &#34;like_count&#34;: 0, &#34;duration_seconds&#34;: 0, &#34;published_at&#34;: &#34;2026-04-28T23:11:55+00:00&#34;}];
-const severityCounts = {&#34;0&#34;: 20, &#34;1&#34;: 0, &#34;2&#34;: 0, &#34;3&#34;: 0, &#34;4&#34;: 0, &#34;5&#34;: 0};
-const typeCounts = {&#34;&#34;: 20};
-const platformCounts = {&#34;youtube&#34;: 10, &#34;tiktok&#34;: 10};
+// ── Data injected by Python (| safe prevents HTML escaping) ──
+const severityCounts  = {"0": 10, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0};
+const typeCounts      = {"": 10};
+const platformCounts  = {"tiktok": 10};
 
-// Fill platform cards
-document.getElementById('yt-count').textContent = platformCounts['youtube'] || 0;
-document.getElementById('tt-count').textContent = platformCounts['tiktok'] || 0;
+// ── KPI: platform counts ──
+document.getElementById('yt-count').textContent = platformCounts['youtube'] ?? 0;
+document.getElementById('tt-count').textContent = platformCounts['tiktok'] ?? 0;
 
-// Chart: Severity
+// ── Chart theme ──
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const textColor   = isDark ? '#7c829a' : '#5a5f75';
+const gridColor   = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+const fontMono    = "'JetBrains Mono', monospace";
+
+Chart.defaults.font.family = fontMono;
+Chart.defaults.font.size   = 11;
+Chart.defaults.color       = textColor;
+
+const SEV_COLORS = ['#34d399','#fbbf24','#fb923c','#f87171','#ef4444','#dc2626'];
+const SEV_LABELS = ['0 – Nenhum','1 – Baixo','2 – Moderado','3 – Alto','4 – Muito alto','5 – Extremo'];
+const TYPE_COLORS = ['#5b8af0','#e06080','#f0a05b','#3dc9a8','#a78bfa','#60a5fa','#34d399'];
+
+// ── Chart: Severity ──
 new Chart(document.getElementById('chartSeverity'), {
   type: 'bar',
   data: {
-    labels: ['0 – Nenhum','1 – Baixo','2 – Moderado','3 – Alto','4 – Muito alto','5 – Extremo'],
+    labels: SEV_LABELS,
     datasets: [{
       label: 'Vídeos',
       data: [0,1,2,3,4,5].map(i => severityCounts[String(i)] || 0),
-      backgroundColor: ['#d1fae5','#fef3c7','#fed7aa','#fecaca','#f87171','#dc2626'],
-      borderRadius: 4,
+      backgroundColor: SEV_COLORS.map(c => c + '33'),
+      borderColor: SEV_COLORS,
+      borderWidth: 1.5,
+      borderRadius: 5,
     }]
   },
-  options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: textColor, font: { size: 9 } }, grid: { color: gridColor } },
+      y: { beginAtZero: true, ticks: { stepSize: 1, color: textColor }, grid: { color: gridColor } }
+    }
+  }
 });
 
-// Chart: Type
+// ── Chart: Type ──
 const typeLabels = Object.keys(typeCounts);
-const typeData = typeLabels.map(k => typeCounts[k]);
-const typeColors = ['#3b82f6','#ef4444','#f59e0b','#10b981','#6366f1','#ec4899'];
-new Chart(document.getElementById('chartType'), {
-  type: 'doughnut',
-  data: {
-    labels: typeLabels,
-    datasets: [{ data: typeData, backgroundColor: typeColors.slice(0, typeLabels.length), borderWidth: 1 }]
-  },
-  options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
-});
-
-// Chart: Platform
-const platLabels = Object.keys(platformCounts);
-const platData = platLabels.map(k => platformCounts[k]);
-new Chart(document.getElementById('chartPlatform'), {
-  type: 'pie',
-  data: {
-    labels: platLabels,
-    datasets: [{ data: platData, backgroundColor: ['#3b82f6','#ec4899','#10b981'], borderWidth: 1 }]
-  },
-  options: { plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
-});
-
-// Filtering
-const searchInput = document.getElementById('search-input');
-const filterPlatform = document.getElementById('filter-platform');
-const filterSeverity = document.getElementById('filter-severity');
-const tableBody = document.getElementById('table-body');
-const noResults = document.getElementById('no-results');
-
-function applyFilters() {
-  const q = searchInput.value.toLowerCase();
-  const plat = filterPlatform.value;
-  const sev = filterSeverity.value;
-  let visible = 0;
-
-  tableBody.querySelectorAll('tr').forEach(row => {
-    const searchable = row.dataset.searchable.toLowerCase();
-    const rowPlat = row.dataset.platform;
-    const rowSev = row.dataset.severity;
-    const matchQ = !q || searchable.includes(q);
-    const matchP = !plat || rowPlat === plat;
-    const matchS = !sev || rowSev === sev;
-    if (matchQ && matchP && matchS) {
-      row.classList.remove('row-hidden');
-      visible++;
-    } else {
-      row.classList.add('row-hidden');
+const typeData   = typeLabels.map(k => typeCounts[k]);
+if (typeLabels.length > 0) {
+  new Chart(document.getElementById('chartType'), {
+    type: 'doughnut',
+    data: {
+      labels: typeLabels,
+      datasets: [{
+        data: typeData,
+        backgroundColor: TYPE_COLORS.slice(0, typeLabels.length).map(c => c + '33'),
+        borderColor: TYPE_COLORS.slice(0, typeLabels.length),
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { color: textColor, font: { size: 10 }, padding: 8, boxWidth: 12 } } }
     }
   });
+}
 
-  noResults.classList.toggle('hidden', visible > 0);
+// ── Chart: Platform ──
+const platLabels = Object.keys(platformCounts);
+const platData   = platLabels.map(k => platformCounts[k]);
+const platColors = platLabels.map(l => l === 'youtube' ? '#ff3c3c' : '#e040fb');
+if (platLabels.length > 0) {
+  new Chart(document.getElementById('chartPlatform'), {
+    type: 'pie',
+    data: {
+      labels: platLabels,
+      datasets: [{
+        data: platData,
+        backgroundColor: platColors.map(c => c + '33'),
+        borderColor: platColors,
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { color: textColor, font: { size: 10 }, padding: 8, boxWidth: 12 } } }
+    }
+  });
+}
+
+// ── Filtering ──
+const searchInput    = document.getElementById('search-input');
+const filterPlatform = document.getElementById('filter-platform');
+const filterSeverity = document.getElementById('filter-severity');
+const tableBody      = document.getElementById('table-body');
+const noResults      = document.getElementById('no-results');
+
+function applyFilters() {
+  const q    = searchInput.value.toLowerCase().trim();
+  const plat = filterPlatform.value;
+  const sev  = filterSeverity.value;
+  let visible = 0;
+  tableBody.querySelectorAll('tr').forEach(row => {
+    const haystack = (row.dataset.searchable || '').toLowerCase();
+    const ok = (!q || haystack.includes(q))
+            && (!plat || row.dataset.platform === plat)
+            && (!sev  || row.dataset.severity === sev);
+    row.classList.toggle('row-hidden', !ok);
+    if (ok) visible++;
+  });
+  noResults.style.display = visible === 0 ? 'block' : 'none';
 }
 
 searchInput.addEventListener('input', applyFilters);
